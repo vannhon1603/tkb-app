@@ -1,0 +1,2098 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sổ Quản Lý Giảng Dạy & Lịch Báo Giảng PRO - Năm Học 2026-2027</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            200: '#c7d2fe',
+                            300: '#a5b4fc',
+                            400: '#818cf8',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            800: '#3730a3',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel Standalone -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .view-enter { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white !important; font-size: 11pt; }
+            .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl { box-shadow: none !important; }
+            .border { border-color: #cbd5e1 !important; }
+        }
+    </style>
+</head>
+<body class="h-full text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+    <div id="root" class="h-full flex flex-col"></div>
+
+    <script type="text/babel">
+
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // ============================================================
+        // 1. CONSTANTS & HELPERS
+        // ============================================================
+        const STORAGE_KEY = 'teacher_hub_pro_data_v2026';
+
+        // Built-in K10 Curriculum Template (105 SGK + 35 Specialized)
+        const K11_TEMPLATE_LESSONS = [{"week": 1, "period": 1, "lessonName": "§1. Giá trị lượng giác của góc lượng giác", "topic": "", "expectedDate": ""}, {"week": 1, "period": 1, "lessonName": "CĐ1- §1. Phép biến hình", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 1, "period": 2, "lessonName": "§1. Giá trị lượng giác của góc lượng giác", "topic": "", "expectedDate": ""}, {"week": 1, "period": 3, "lessonName": "§1. Giá trị lượng giác của góc lượng giác", "topic": "", "expectedDate": ""}, {"week": 2, "period": 4, "lessonName": "§2. Công thức lượng giác", "topic": "", "expectedDate": ""}, {"week": 2, "period": 2, "lessonName": "CĐ1-§1. Phép biến hình", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 2, "period": 5, "lessonName": "§2. Công thức lượng giác", "topic": "", "expectedDate": ""}, {"week": 2, "period": 6, "lessonName": "§3. Hàm số lượng giác", "topic": "", "expectedDate": ""}, {"week": 3, "period": 7, "lessonName": "§3. Hàm số lượng giác", "topic": "", "expectedDate": ""}, {"week": 3, "period": 3, "lessonName": "CĐ1-§2. Phép tịnh tiến", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 3, "period": 8, "lessonName": "§4. Phương trình lượng giác cơ bản", "topic": "", "expectedDate": ""}, {"week": 3, "period": 9, "lessonName": "§4. Phương trình lượng giác cơ bản", "topic": "", "expectedDate": ""}, {"week": 4, "period": 10, "lessonName": "Bài tập cuối chương I", "topic": "", "expectedDate": ""}, {"week": 4, "period": 4, "lessonName": "CĐ1-§2. Phép tịnh tiến", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 4, "period": 11, "lessonName": "§5. Dãy số", "topic": "", "expectedDate": ""}, {"week": 4, "period": 12, "lessonName": "§5. Dãy số", "topic": "", "expectedDate": ""}, {"week": 5, "period": 13, "lessonName": "§6. Cấp số cộng", "topic": "", "expectedDate": ""}, {"week": 5, "period": 5, "lessonName": "CĐ1-§3. Phép đối xứng trục", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 5, "period": 14, "lessonName": "§6. Cấp số cộng", "topic": "", "expectedDate": ""}, {"week": 5, "period": 15, "lessonName": "§7. Cấp số nhân", "topic": "", "expectedDate": ""}, {"week": 6, "period": 16, "lessonName": "§7. Cấp số nhân", "topic": "", "expectedDate": ""}, {"week": 6, "period": 6, "lessonName": "CĐ1-§3. Phép đối xứng trục", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 6, "period": 17, "lessonName": "Bài tập cuối chương II", "topic": "", "expectedDate": ""}, {"week": 6, "period": 18, "lessonName": "§8. Mẫu số liệu ghép nhóm", "topic": "", "expectedDate": ""}, {"week": 7, "period": 19, "lessonName": "§9. Các số đặc trưng đo xu thế trung tâm", "topic": "", "expectedDate": ""}, {"week": 7, "period": 7, "lessonName": "CĐ1-§4. Phép quay và phép đối xứng tâm", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 7, "period": 20, "lessonName": "§9. Các số đặc trưng đo xu thế trung tâm", "topic": "", "expectedDate": ""}, {"week": 7, "period": 21, "lessonName": "Bài tập cuối chương III", "topic": "", "expectedDate": ""}, {"week": 8, "period": 8, "lessonName": "CĐ1-§4. Phép quay và phép đối xứng tâm", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 8, "period": 22, "lessonName": "§10. Đường thẳng và mặt phẳng trong không gian", "topic": "", "expectedDate": ""}, {"week": 8, "period": 23, "lessonName": "§10. Đường thẳng và mặt phẳng trong không gian", "topic": "", "expectedDate": ""}, {"week": 8, "period": 24, "lessonName": "§10. Đường thẳng và mặt phẳng trong không gian", "topic": "", "expectedDate": ""}, {"week": 9, "period": 25, "lessonName": "Ôn tập giữa kỳ 1", "topic": "", "expectedDate": ""}, {"week": 9, "period": 9, "lessonName": "CĐ1-§5. Phép dời hình", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 9, "period": 26, "lessonName": "Kiểm tra giữa kỳ 1", "topic": "", "expectedDate": ""}, {"week": 9, "period": 27, "lessonName": "Kiểm tra giữa kỳ 1", "topic": "", "expectedDate": ""}, {"week": 10, "period": 28, "lessonName": "§11. Hai đường thẳng song song", "topic": "", "expectedDate": ""}, {"week": 10, "period": 10, "lessonName": "CĐ1-§6. Phép vị tự", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 10, "period": 29, "lessonName": "§11. Hai đường thẳng song song", "topic": "", "expectedDate": ""}, {"week": 10, "period": 30, "lessonName": "§11. Hai đường thẳng song song", "topic": "", "expectedDate": ""}, {"week": 11, "period": 31, "lessonName": "§12. Đường thẳng và mặt phẳng song song", "topic": "", "expectedDate": ""}, {"week": 11, "period": 11, "lessonName": "CĐ1-§6. Phép vị tự", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 11, "period": 32, "lessonName": "§12. Đường thẳng và mặt phẳng song song", "topic": "", "expectedDate": ""}, {"week": 11, "period": 33, "lessonName": "§13. Hai mặt phẳng song song", "topic": "", "expectedDate": ""}, {"week": 12, "period": 34, "lessonName": "§13. Hai mặt phẳng song song", "topic": "", "expectedDate": ""}, {"week": 12, "period": 12, "lessonName": "CĐ1-§7 Phép đồng dạng", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 12, "period": 35, "lessonName": "§13. Hai mặt phẳng song song", "topic": "", "expectedDate": ""}, {"week": 12, "period": 36, "lessonName": "§13. Hai mặt phẳng song song", "topic": "", "expectedDate": ""}, {"week": 13, "period": 37, "lessonName": "§14. Phép chiếu song song", "topic": "", "expectedDate": ""}, {"week": 13, "period": 13, "lessonName": "Bài tập cuối chuyên đề 1", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 13, "period": 38, "lessonName": "§14. Phép chiếu song song", "topic": "", "expectedDate": ""}, {"week": 13, "period": 39, "lessonName": "Bài tập cuối chương IV", "topic": "", "expectedDate": ""}, {"week": 14, "period": 40, "lessonName": "§15. Giới hạn của dãy số", "topic": "", "expectedDate": ""}, {"week": 14, "period": 14, "lessonName": "CĐ2 - §8. Một vài khái niệm cơ bản", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 14, "period": 41, "lessonName": "§15. Giới hạn của dãy số", "topic": "", "expectedDate": ""}, {"week": 14, "period": 42, "lessonName": "§16. Giới hạn của hàm số", "topic": "", "expectedDate": ""}, {"week": 15, "period": 43, "lessonName": "§16. Giới hạn của hàm số", "topic": "", "expectedDate": ""}, {"week": 15, "period": 15, "lessonName": "CĐ2 - §8. Một vài khái niệm cơ bản", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 15, "period": 44, "lessonName": "§17. Hàm số liên tục", "topic": "", "expectedDate": ""}, {"week": 15, "period": 45, "lessonName": "§17. Hàm số liên tục", "topic": "", "expectedDate": ""}, {"week": 16, "period": 46, "lessonName": "Bài tập cuối chương V", "topic": "", "expectedDate": ""}, {"week": 16, "period": 16, "lessonName": "CĐ2 - §8. Một vài khái niệm cơ bản", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 16, "period": 47, "lessonName": "Ôn tập cuối kỳ 1", "topic": "", "expectedDate": ""}, {"week": 16, "period": 48, "lessonName": "Ôn tập cuối kỳ 1", "topic": "", "expectedDate": ""}, {"week": 17, "period": 49, "lessonName": "Kiểm tra cuối học kì 1", "topic": "", "expectedDate": ""}, {"week": 17, "period": 17, "lessonName": "CĐ2 - §9. Đường đi Euler và đường đi Hamilton", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 17, "period": 50, "lessonName": "Kiểm tra cuối học kì 1", "topic": "", "expectedDate": ""}, {"week": 17, "period": 51, "lessonName": "Một vài ứng dụng của toán học trong tài chính", "topic": "", "expectedDate": ""}, {"week": 18, "period": 52, "lessonName": "Một vài ứng dụng của toán học trong tài chính", "topic": "", "expectedDate": ""}, {"week": 18, "period": 18, "lessonName": "CĐ2 - §9. Đường đi Euler và đường đi Hamilton", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 18, "period": 53, "lessonName": "Lực căng mặt ngoài của nước", "topic": "", "expectedDate": ""}, {"week": 18, "period": 54, "lessonName": "Lực căng mặt ngoài của nước", "topic": "", "expectedDate": ""}, {"week": 19, "period": 55, "lessonName": "§18. Luỹ thừa với số mũ thực", "topic": "", "expectedDate": ""}, {"week": 19, "period": 19, "lessonName": "CĐ2 - §9. Đường đi Euler và đường đi Hamilton", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 19, "period": 56, "lessonName": "§18. Luỹ thừa với số mũ thực", "topic": "", "expectedDate": ""}, {"week": 19, "period": 57, "lessonName": "§19. Lôgarit", "topic": "", "expectedDate": ""}, {"week": 20, "period": 58, "lessonName": "§19. Lôgarit", "topic": "", "expectedDate": ""}, {"week": 20, "period": 20, "lessonName": "CĐ2 - §10. Bài toán tìm đường đi tối ưu trong một vài trường hợp đơn giản", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 20, "period": 59, "lessonName": "§20. Hàm số mũ và hàm số lôgarit", "topic": "", "expectedDate": ""}, {"week": 20, "period": 60, "lessonName": "§21. Phương trình, bất phương trình mũ và lôgarit", "topic": "", "expectedDate": ""}, {"week": 21, "period": 61, "lessonName": "§21. Phương trình, bất phương trình mũ và lôgarit", "topic": "", "expectedDate": ""}, {"week": 21, "period": 21, "lessonName": "CĐ2 - §10. Bài toán tìm đường đi tối ưu trong một vài trường hợp đơn giản", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 21, "period": 62, "lessonName": "Bài tập cuối chương VI", "topic": "", "expectedDate": ""}, {"week": 21, "period": 63, "lessonName": "§22. Hai đường thẳng vuông góc", "topic": "", "expectedDate": ""}, {"week": 22, "period": 64, "lessonName": "§22. Hai đường thẳng vuông góc", "topic": "", "expectedDate": ""}, {"week": 22, "period": 22, "lessonName": "CĐ2 - §10. Bài toán tìm đường đi tối ưu trong một vài trường hợp đơn giản", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 22, "period": 65, "lessonName": "§23. Đường thẳng vuông góc với mặt phẳng", "topic": "", "expectedDate": ""}, {"week": 22, "period": 66, "lessonName": "§23. Đường thẳng vuông góc với mặt phẳng", "topic": "", "expectedDate": ""}, {"week": 23, "period": 67, "lessonName": "§23. Đường thẳng vuông góc với mặt phẳng", "topic": "", "expectedDate": ""}, {"week": 23, "period": 23, "lessonName": "Bài tập cuối chuyên đề 2", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 23, "period": 68, "lessonName": "§24. Phép chiếu vuông góc. Góc giữa đường thẳng và mặt phẳng.", "topic": "", "expectedDate": ""}, {"week": 23, "period": 69, "lessonName": "§24. Phép chiếu vuông góc. Góc giữa đường thẳng và mặt phẳng.", "topic": "", "expectedDate": ""}, {"week": 24, "period": 70, "lessonName": "§25. Hai mặt phẳng vuông góc", "topic": "", "expectedDate": ""}, {"week": 24, "period": 24, "lessonName": "Bài tập cuối chuyên đề 2", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 24, "period": 71, "lessonName": "§25. Hai mặt phẳng vuông góc", "topic": "", "expectedDate": ""}, {"week": 24, "period": 72, "lessonName": "§25. Hai mặt phẳng vuông góc", "topic": "", "expectedDate": ""}, {"week": 25, "period": 73, "lessonName": "§25. Hai mặt phẳng vuông góc", "topic": "", "expectedDate": ""}, {"week": 25, "period": 25, "lessonName": "CĐ3 - §11. Hình chiếu vuông góc và hình chiếu trục đo", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 25, "period": 74, "lessonName": "§26. Khoảng cách", "topic": "", "expectedDate": ""}, {"week": 25, "period": 75, "lessonName": "§26. Khoảng cách", "topic": "", "expectedDate": ""}, {"week": 26, "period": 76, "lessonName": "Ôn tập giữa kỳ 2", "topic": "", "expectedDate": ""}, {"week": 26, "period": 26, "lessonName": "CĐ3 - §11. Hình chiếu vuông góc và hình chiếu trục đo", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 26, "period": 77, "lessonName": "Kiểm tra giữa kỳ 2", "topic": "", "expectedDate": ""}, {"week": 26, "period": 78, "lessonName": "Kiểm tra giữa kỳ 2", "topic": "", "expectedDate": ""}, {"week": 27, "period": 79, "lessonName": "§26. Khoảng cách", "topic": "", "expectedDate": ""}, {"week": 27, "period": 27, "lessonName": "CĐ3 - §11. Hình chiếu vuông góc và hình chiếu trục đo", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 27, "period": 80, "lessonName": "§27. Thể tích", "topic": "", "expectedDate": ""}, {"week": 27, "period": 81, "lessonName": "§27. Thể tích", "topic": "", "expectedDate": ""}, {"week": 28, "period": 82, "lessonName": "Bài tập cuối chương VII", "topic": "", "expectedDate": ""}, {"week": 28, "period": 28, "lessonName": "CĐ3 - §11. Hình chiếu vuông góc và hình chiếu trục đo", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 28, "period": 83, "lessonName": "§28. Biến cố hợp, biến cố giao, biến cố độc lập", "topic": "", "expectedDate": ""}, {"week": 28, "period": 84, "lessonName": "§28. Biến cố hợp, biến cố giao, biến cố độc lập", "topic": "", "expectedDate": ""}, {"week": 29, "period": 85, "lessonName": "§28. Biến cố hợp, biến cố giao, biến cố độc lập", "topic": "", "expectedDate": ""}, {"week": 29, "period": 29, "lessonName": "CĐ3 - §12. Bản vẽ kĩ thuật", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 29, "period": 86, "lessonName": "§29. Công thức cộng xác suất", "topic": "", "expectedDate": ""}, {"week": 29, "period": 87, "lessonName": "§29. Công thức cộng xác suất", "topic": "", "expectedDate": ""}, {"week": 30, "period": 88, "lessonName": "§29. Công thức cộng xác suất", "topic": "", "expectedDate": ""}, {"week": 30, "period": 30, "lessonName": "CĐ3 - §12. Bản vẽ kĩ thuật", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 30, "period": 89, "lessonName": "§30. Công thức nhân xác suất cho 2 biến cố độc lập", "topic": "", "expectedDate": ""}, {"week": 30, "period": 90, "lessonName": "§30. Công thức nhân xác suất cho 2 biến cố độc lập", "topic": "", "expectedDate": ""}, {"week": 31, "period": 91, "lessonName": "Bài tập cuối chương VIII", "topic": "", "expectedDate": ""}, {"week": 31, "period": 31, "lessonName": "CĐ3 - §12. Bản vẽ kĩ thuật", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 31, "period": 92, "lessonName": "§31. Định nghĩa và ý nghĩa hình học của đạo hàm", "topic": "", "expectedDate": ""}, {"week": 31, "period": 93, "lessonName": "§31. Định nghĩa và ý nghĩa hình học của đạo hàm", "topic": "", "expectedDate": ""}, {"week": 32, "period": 94, "lessonName": "§32. Các quy tắc tính đạo hàm", "topic": "", "expectedDate": ""}, {"week": 32, "period": 32, "lessonName": "Bài tập cuối chuyên đề 3", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 32, "period": 95, "lessonName": "§32. Các quy tắc tính đạo hàm", "topic": "", "expectedDate": ""}, {"week": 32, "period": 96, "lessonName": "§32. Các quy tắc tính đạo hàm", "topic": "", "expectedDate": ""}, {"week": 33, "period": 97, "lessonName": "§33. Đạo hàm cấp hai", "topic": "", "expectedDate": ""}, {"week": 33, "period": 33, "lessonName": "Ôn tập và kiểm tra các chuyên đề", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 33, "period": 98, "lessonName": "Bài tập cuối chương IX", "topic": "", "expectedDate": ""}, {"week": 33, "period": 99, "lessonName": "Ôn tập cuối kỳ 2", "topic": "", "expectedDate": ""}, {"week": 34, "period": 100, "lessonName": "Ôn tập cuối kỳ 2", "topic": "", "expectedDate": ""}, {"week": 34, "period": 34, "lessonName": "Ôn tập và kiểm tra các chuyên đề", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 34, "period": 101, "lessonName": "Kiểm tra cuối kỳ 2", "topic": "", "expectedDate": ""}, {"week": 34, "period": 102, "lessonName": "Kiểm tra cuối kỳ 2", "topic": "", "expectedDate": ""}, {"week": 35, "period": 35, "lessonName": "Ôn tập và kiểm tra các chuyên đề", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 35, "period": 103, "lessonName": "Một số mô hình toán học sử dụng hàm số mũ và hàm số logarit", "topic": "", "expectedDate": ""}, {"week": 35, "period": 104, "lessonName": "Hoạt động thực hành trải nghiệm hình học", "topic": "", "expectedDate": ""}, {"week": 35, "period": 105, "lessonName": "Hoạt động thực hành trải nghiệm hình học", "topic": "", "expectedDate": ""}];
+        const K10_TEMPLATE_LESSONS = [{"week": 1, "period": 1, "lessonName": "§1. Mệnh đề", "topic": "", "expectedDate": ""}, {"week": 1, "period": 1, "lessonName": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 1, "period": 2, "lessonName": "§1. Mệnh đề", "topic": "", "expectedDate": ""}, {"week": 1, "period": 3, "lessonName": "§1. Mệnh đề", "topic": "", "expectedDate": ""}, {"week": 2, "period": 4, "lessonName": "§1. Mệnh đề", "topic": "", "expectedDate": ""}, {"week": 2, "period": 2, "lessonName": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 2, "period": 5, "lessonName": "§2. Tập hợp và các phép toán trên tập hợp", "topic": "", "expectedDate": ""}, {"week": 2, "period": 6, "lessonName": "§2. Tập hợp và các phép toán trên tập hợp", "topic": "", "expectedDate": ""}, {"week": 3, "period": 7, "lessonName": "§2. Tập hợp và các phép toán trên tập hợp", "topic": "", "expectedDate": ""}, {"week": 3, "period": 3, "lessonName": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 3, "period": 8, "lessonName": "§2. Tập hợp và các phép toán trên tập hợp", "topic": "", "expectedDate": ""}, {"week": 3, "period": 9, "lessonName": "Bài tập cuối chương I", "topic": "", "expectedDate": ""}, {"week": 4, "period": 4, "lessonName": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 4, "period": 10, "lessonName": "§3. Bất phương trình bậc nhất hai ẩn", "topic": "", "expectedDate": ""}, {"week": 4, "period": 11, "lessonName": "§3. Bất phương trình bậc nhất hai ẩn", "topic": "", "expectedDate": ""}, {"week": 4, "period": 12, "lessonName": "§4. Hệ bất phương trình bậc nhất hai ẩn", "topic": "", "expectedDate": ""}, {"week": 5, "period": 13, "lessonName": "§4. Hệ bất phương trình bậc nhất hai ẩn", "topic": "", "expectedDate": ""}, {"week": 5, "period": 5, "lessonName": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 5, "period": 14, "lessonName": "§4. Hệ bất phương trình bậc nhất hai ẩn", "topic": "", "expectedDate": ""}, {"week": 5, "period": 15, "lessonName": "Bài tập cuối chương II", "topic": "", "expectedDate": ""}, {"week": 6, "period": 6, "lessonName": "CĐ1-§2. Ứng dụng của hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 6, "period": 16, "lessonName": "§5. Giá trị lượng giác của một góc từ 0° đến 180°", "topic": "", "expectedDate": ""}, {"week": 6, "period": 17, "lessonName": "§5. Giá trị lượng giác của một góc từ 0° đến 180°", "topic": "", "expectedDate": ""}, {"week": 6, "period": 18, "lessonName": "§6. Hệ thức lượng trong tam giác", "topic": "", "expectedDate": ""}, {"week": 7, "period": 19, "lessonName": "§6. Hệ thức lượng trong tam giác", "topic": "", "expectedDate": ""}, {"week": 7, "period": 7, "lessonName": "CĐ1-§2. Ứng dụng của hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 7, "period": 20, "lessonName": "§6. Hệ thức lượng trong tam giác", "topic": "", "expectedDate": ""}, {"week": 7, "period": 21, "lessonName": "§6. Hệ thức lượng trong tam giác", "topic": "", "expectedDate": ""}, {"week": 8, "period": 22, "lessonName": "Bài tập cuối chương III", "topic": "", "expectedDate": ""}, {"week": 8, "period": 8, "lessonName": "CĐ1-§2. Ứng dụng của hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 8, "period": 23, "lessonName": "§7. Các khái niệm mở đầu", "topic": "", "expectedDate": ""}, {"week": 8, "period": 24, "lessonName": "Ôn tập giữa kỳ 1", "topic": "", "expectedDate": ""}, {"week": 9, "period": 25, "lessonName": "Kiểm tra giữa kỳ 1", "topic": "", "expectedDate": ""}, {"week": 9, "period": 9, "lessonName": "CĐ1-§2. Ứng dụng của hệ phương trình bậc nhất ba ẩn", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 9, "period": 26, "lessonName": "Kiểm tra giữa kỳ 1", "topic": "", "expectedDate": ""}, {"week": 9, "period": 27, "lessonName": "§7. Các khái niệm mở đầu", "topic": "", "expectedDate": ""}, {"week": 10, "period": 28, "lessonName": "§8. Tổng và hiệu của hai vectơ", "topic": "", "expectedDate": ""}, {"week": 10, "period": 10, "lessonName": "Bài tập cuối chuyên đề 1", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 10, "period": 29, "lessonName": "§8. Tổng và hiệu của hai vectơ", "topic": "", "expectedDate": ""}, {"week": 10, "period": 30, "lessonName": "§9. Tích của một vectơ với một số", "topic": "", "expectedDate": ""}, {"week": 11, "period": 31, "lessonName": "§9. Tích của một vectơ với một số", "topic": "", "expectedDate": ""}, {"week": 11, "period": 11, "lessonName": "Bài tập cuối chuyên đề 1", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 11, "period": 32, "lessonName": "§10. Vectơ trong mặt phẳng tọa độ", "topic": "", "expectedDate": ""}, {"week": 11, "period": 33, "lessonName": "§10. Vectơ trong mặt phẳng tọa độ", "topic": "", "expectedDate": ""}, {"week": 12, "period": 34, "lessonName": "§10. Vectơ trong mặt phẳng tọa độ", "topic": "", "expectedDate": ""}, {"week": 12, "period": 12, "lessonName": "CHUYÊN ĐỀ 2. PHƯƠNG PHÁP QUY NẠP TOÁN HỌC.", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 12, "period": 35, "lessonName": "§11. Tích vô hướng của hai vectơ", "topic": "", "expectedDate": ""}, {"week": 12, "period": 36, "lessonName": "§11. Tích vô hướng của hai vectơ", "topic": "", "expectedDate": ""}, {"week": 13, "period": 37, "lessonName": "§11. Tích vô hướng của hai vectơ", "topic": "", "expectedDate": ""}, {"week": 13, "period": 13, "lessonName": "CĐ2- §3. Phương pháp quy nạp toán học", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 13, "period": 38, "lessonName": "Bài tập cuối chương IV", "topic": "", "expectedDate": ""}, {"week": 13, "period": 39, "lessonName": "§12. Số gần đúng và sai số", "topic": "", "expectedDate": ""}, {"week": 14, "period": 40, "lessonName": "§12. Số gần đúng và sai số", "topic": "", "expectedDate": ""}, {"week": 14, "period": 14, "lessonName": "CĐ2- §3. Phương pháp quy nạp toán học", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 14, "period": 41, "lessonName": "§13. Các số đặc trưng đo xu thế trung tâm", "topic": "", "expectedDate": ""}, {"week": 14, "period": 42, "lessonName": "§13. Các số đặc trưng đo xu thế trung tâm", "topic": "", "expectedDate": ""}, {"week": 15, "period": 43, "lessonName": "§14. Các số đặc trưng đo độ phân tán", "topic": "", "expectedDate": ""}, {"week": 15, "period": 15, "lessonName": "CĐ2- §3. Phương pháp quy nạp toán học", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 15, "period": 44, "lessonName": "§14. Các số đặc trưng đo độ phân tán", "topic": "", "expectedDate": ""}, {"week": 15, "period": 45, "lessonName": "§14. Các số đặc trưng đo độ phân tán", "topic": "", "expectedDate": ""}, {"week": 16, "period": 46, "lessonName": "Bài tập cuối chương V", "topic": "", "expectedDate": ""}, {"week": 16, "period": 16, "lessonName": "CĐ2- §4. Nhị thức Newton", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 16, "period": 47, "lessonName": "Ôn tập cuối kỳ 1", "topic": "", "expectedDate": ""}, {"week": 16, "period": 48, "lessonName": "Ôn tập cuối kỳ 1", "topic": "", "expectedDate": ""}, {"week": 17, "period": 49, "lessonName": "Kiểm tra cuối học kì 1", "topic": "", "expectedDate": ""}, {"week": 17, "period": 17, "lessonName": "CĐ2- §4. Nhị thức Newton", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 17, "period": 50, "lessonName": "Kiểm tra cuối học kì 1", "topic": "", "expectedDate": ""}, {"week": 17, "period": 51, "lessonName": "Tìm hiểu một số kiến thức về tài chính", "topic": "", "expectedDate": ""}, {"week": 18, "period": 52, "lessonName": "Tìm hiểu một số kiến thức về tài chính", "topic": "", "expectedDate": ""}, {"week": 18, "period": 18, "lessonName": "CĐ2- §4. Nhị thức Newton", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 18, "period": 53, "lessonName": "Mạng xã hội: Lợi và hại", "topic": "", "expectedDate": ""}, {"week": 18, "period": 54, "lessonName": "Mạng xã hội: Lợi và hại", "topic": "", "expectedDate": ""}, {"week": 19, "period": 19, "lessonName": "CĐ2- §4. Nhị thức Newton", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 19, "period": 55, "lessonName": "§15. Hàm số", "topic": "", "expectedDate": ""}, {"week": 19, "period": 56, "lessonName": "§15. Hàm số", "topic": "", "expectedDate": ""}, {"week": 19, "period": 57, "lessonName": "§15. Hàm số", "topic": "", "expectedDate": ""}, {"week": 20, "period": 58, "lessonName": "§15. Hàm số", "topic": "", "expectedDate": ""}, {"week": 20, "period": 20, "lessonName": "CĐ2- §4. Nhị thức Newton", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 20, "period": 59, "lessonName": "§16. Hàm số bậc hai", "topic": "", "expectedDate": ""}, {"week": 20, "period": 60, "lessonName": "§16. Hàm số bậc hai", "topic": "", "expectedDate": ""}, {"week": 21, "period": 61, "lessonName": "§16. Hàm số bậc hai", "topic": "", "expectedDate": ""}, {"week": 21, "period": 21, "lessonName": "Bài tập cuối chuyên đề 2", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 21, "period": 62, "lessonName": "§17. Dấu của tam thức bậc hai", "topic": "", "expectedDate": ""}, {"week": 21, "period": 63, "lessonName": "§17. Dấu của tam thức bậc hai", "topic": "", "expectedDate": ""}, {"week": 22, "period": 64, "lessonName": "§17. Dấu của tam thức bậc hai", "topic": "", "expectedDate": ""}, {"week": 22, "period": 22, "lessonName": "CHUYÊN ĐỀ 3. BA ĐƯỜNG CONIC VÀ ỨNG DỤNG (11 tiết)", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 22, "period": 65, "lessonName": "§18. Phương trình quy về phương trình bậc hai", "topic": "", "expectedDate": ""}, {"week": 22, "period": 66, "lessonName": "§18. Phương trình quy về phương trình bậc hai", "topic": "", "expectedDate": ""}, {"week": 23, "period": 67, "lessonName": "Bài tập cuối chương VI", "topic": "", "expectedDate": ""}, {"week": 23, "period": 23, "lessonName": "CĐ3- §5. Elip", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 23, "period": 68, "lessonName": "§19. Phương trình đường thẳng", "topic": "", "expectedDate": ""}, {"week": 23, "period": 69, "lessonName": "§19. Phương trình đường thẳng", "topic": "", "expectedDate": ""}, {"week": 24, "period": 70, "lessonName": "§20. Vị trí tương đối giữa hai đường thẳng. Góc và khoảng cách", "topic": "", "expectedDate": ""}, {"week": 24, "period": 24, "lessonName": "CĐ3- §5. Elip", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 24, "period": 71, "lessonName": "§20. Vị trí tương đối giữa hai đường thẳng. Góc và khoảng cách", "topic": "", "expectedDate": ""}, {"week": 24, "period": 72, "lessonName": "§20. Vị trí tương đối giữa hai đường thẳng. Góc và khoảng cách", "topic": "", "expectedDate": ""}, {"week": 25, "period": 73, "lessonName": "§21. Đường tròn trong mặt phẳng tọa độ", "topic": "", "expectedDate": ""}, {"week": 25, "period": 25, "lessonName": "CĐ3- §6. Hypebol", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 25, "period": 74, "lessonName": "§21. Đường tròn trong mặt phẳng tọa độ", "topic": "", "expectedDate": ""}, {"week": 25, "period": 75, "lessonName": "Ôn tập giữa kỳ 2", "topic": "", "expectedDate": ""}, {"week": 26, "period": 76, "lessonName": "Kiểm tra giữa kỳ 2", "topic": "", "expectedDate": ""}, {"week": 26, "period": 26, "lessonName": "CĐ3- §6. Hypebol", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 26, "period": 77, "lessonName": "Kiểm tra giữa kỳ 2", "topic": "", "expectedDate": ""}, {"week": 26, "period": 78, "lessonName": "§22. Ba đường conic", "topic": "", "expectedDate": ""}, {"week": 27, "period": 79, "lessonName": "§22. Ba đường conic", "topic": "", "expectedDate": ""}, {"week": 27, "period": 27, "lessonName": "CĐ3- §6. Hypebol", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 27, "period": 80, "lessonName": "§22. Ba đường conic", "topic": "", "expectedDate": ""}, {"week": 27, "period": 81, "lessonName": "§22. Ba đường conic", "topic": "", "expectedDate": ""}, {"week": 28, "period": 82, "lessonName": "Bài tập cuối chương VII", "topic": "", "expectedDate": ""}, {"week": 28, "period": 28, "lessonName": "CĐ3- §7. Parabol", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 28, "period": 83, "lessonName": "§23. Quy tắc đếm", "topic": "", "expectedDate": ""}, {"week": 28, "period": 84, "lessonName": "§23. Quy tắc đếm", "topic": "", "expectedDate": ""}, {"week": 29, "period": 85, "lessonName": "§23. Quy tắc đếm", "topic": "", "expectedDate": ""}, {"week": 29, "period": 29, "lessonName": "CĐ3- §7. Parabol", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 29, "period": 86, "lessonName": "§23. Quy tắc đếm", "topic": "", "expectedDate": ""}, {"week": 29, "period": 87, "lessonName": "§24. Hoán vị, chỉnh hợp và tổ hợp", "topic": "", "expectedDate": ""}, {"week": 30, "period": 88, "lessonName": "§24. Hoán vị, chỉnh hợp và tổ hợp", "topic": "", "expectedDate": ""}, {"week": 30, "period": 30, "lessonName": "CĐ3- §8. Sự thống nhất giữa ba đường conic", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 30, "period": 89, "lessonName": "§24. Hoán vị, chỉnh hợp và tổ hợp", "topic": "", "expectedDate": ""}, {"week": 30, "period": 90, "lessonName": "§24. Hoán vị, chỉnh hợp và tổ hợp", "topic": "", "expectedDate": ""}, {"week": 31, "period": 91, "lessonName": "§25. Nhị thức Newton", "topic": "", "expectedDate": ""}, {"week": 31, "period": 31, "lessonName": "CĐ3- §8. Sự thống nhất giữa ba đường conic", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 31, "period": 92, "lessonName": "§25. Nhị thức Newton", "topic": "", "expectedDate": ""}, {"week": 31, "period": 93, "lessonName": "Bài tập cuối chương VIII", "topic": "", "expectedDate": ""}, {"week": 32, "period": 32, "lessonName": "Bài tập cuối chuyên đề 3", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 32, "period": 94, "lessonName": "§26. Biến cố và định nghĩa cổ điển của xác suất", "topic": "", "expectedDate": ""}, {"week": 32, "period": 95, "lessonName": "§26. Biến cố và định nghĩa cổ điển của xác suất", "topic": "", "expectedDate": ""}, {"week": 32, "period": 96, "lessonName": "§27. Thực hành tính xác suất theo định nghĩa cổ điển", "topic": "", "expectedDate": ""}, {"week": 33, "period": 97, "lessonName": "§27. Thực hành tính xác suất theo định nghĩa cổ điển", "topic": "", "expectedDate": ""}, {"week": 33, "period": 33, "lessonName": "Ôn tập và kiểm tra các chuyên đề", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 33, "period": 98, "lessonName": "§27. Thực hành tính xác suất theo định nghĩa cổ điển", "topic": "", "expectedDate": ""}, {"week": 33, "period": 99, "lessonName": "Ôn tập cuối kỳ 2", "topic": "", "expectedDate": ""}, {"week": 34, "period": 100, "lessonName": "Kiểm tra cuối học kì 2", "topic": "", "expectedDate": ""}, {"week": 34, "period": 34, "lessonName": "Ôn tập và kiểm tra các chuyên đề", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 34, "period": 101, "lessonName": "Kiểm tra cuối học kì 2", "topic": "", "expectedDate": ""}, {"week": 34, "period": 102, "lessonName": "Bài tập cuối chương IX", "topic": "", "expectedDate": ""}, {"week": 35, "period": 35, "lessonName": "Ôn tập và kiểm tra các chuyên đề", "topic": "Chuyên đề", "expectedDate": ""}, {"week": 35, "period": 103, "lessonName": "Một số nội dung cho hoạt động trải nghiệm hình học", "topic": "", "expectedDate": ""}, {"week": 35, "period": 104, "lessonName": "Một số nội dung cho hoạt động trải nghiệm hình học", "topic": "", "expectedDate": ""}, {"week": 35, "period": 105, "lessonName": "Ước tính số cá thể trong một quần thể", "topic": "", "expectedDate": ""}];
+
+        const DAY_NAMES = {
+            2: 'Thứ Hai',
+            3: 'Thứ Ba',
+            4: 'Thứ Tư',
+            5: 'Thứ Năm',
+            6: 'Thứ Sáu',
+            7: 'Thứ Bảy',
+            8: 'Chủ Nhật'
+        };
+
+        const generateId = () => '_' + Math.random().toString(36).substr(2, 9);
+
+        const formatDate = (dateString) => {
+            if (!dateString) return '';
+            const [y, m, d] = dateString.split('-');
+            return `${d}/${m}/${y}`;
+        };
+
+        const getToday = () => {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const getCurrentDayOfWeek = () => {
+            const d = new Date().getDay();
+            return d === 0 ? 8 : d + 1; // Mon=2 ... Sun=8
+        };
+
+        // Get exact Date YYYY-MM-DD for a specific Week (1..52) and DayOfWeek (2..8)
+        const getDateForWeekDay = (week, dayOfWeek, schoolYearStart) => {
+            if (!schoolYearStart || !week || !dayOfWeek) return '';
+            const start = new Date(schoolYearStart + 'T00:00:00');
+            const daysOffset = (parseInt(week) - 1) * 7 + (parseInt(dayOfWeek) - 2);
+            const result = new Date(start);
+            result.setDate(start.getDate() + daysOffset);
+            const y = result.getFullYear();
+            const m = String(result.getMonth() + 1).padStart(2, '0');
+            const d = String(result.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+
+        // Determine current week number from date & schoolYearStart
+        const getWeekNumberFromDate = (dateStr, schoolYearStart) => {
+            if (!schoolYearStart || !dateStr) return 1;
+            const start = new Date(schoolYearStart + 'T00:00:00');
+            const date = new Date(dateStr + 'T00:00:00');
+            const diffMs = date - start;
+            if (diffMs < 0) return 1;
+            const weekNum = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
+            return Math.min(Math.max(1, weekNum), 52);
+        };
+
+        // Generate full 7-day info for a given week
+        const getWeekDatesForWeekNum = (weekNum, schoolYearStart) => {
+            const dates = [];
+            for (let day = 2; day <= 8; day++) {
+                const dateStr = getDateForWeekDay(weekNum, day, schoolYearStart);
+                dates.push({
+                    dayOfWeek: day,
+                    dayName: DAY_NAMES[day],
+                    dateString: dateStr,
+                    displayDate: dateStr ? formatDate(dateStr) : ''
+                });
+            }
+            return dates;
+        };
+
+        // Recompute all curriculum expectedDates based on Timetable and SchoolYearStart
+        const recomputeAllCurriculumDates = (curriculum, timetable, schoolYearStart) => {
+            if (!curriculum || curriculum.length === 0) return [];
+            if (!timetable || timetable.length === 0 || !schoolYearStart) {
+                return curriculum.map(c => ({ ...c }));
+            }
+
+            const classIds = [...new Set(curriculum.map(c => c.classId))];
+            const updated = [];
+
+            classIds.forEach(cId => {
+                const regTkb = timetable
+                    .filter(t => t.classId === cId && t.subjectType !== 'specialized')
+                    .sort((a, b) => a.dayOfWeek !== b.dayOfWeek ? a.dayOfWeek - b.dayOfWeek : a.period - b.period);
+
+                const specTkb = timetable
+                    .filter(t => t.classId === cId && t.subjectType === 'specialized')
+                    .sort((a, b) => a.dayOfWeek !== b.dayOfWeek ? a.dayOfWeek - b.dayOfWeek : a.period - b.period);
+
+                const classLessons = curriculum.filter(c => c.classId === cId);
+                const weeks = [...new Set(classLessons.map(c => parseInt(c.week)))].sort((a, b) => a - b);
+
+                weeks.forEach(w => {
+                    // Regular lessons in week w
+                    const regLessons = classLessons
+                        .filter(c => parseInt(c.week) === w && c.topic !== 'Chuyên đề')
+                        .sort((a, b) => parseInt(a.period) - parseInt(b.period));
+
+                    regLessons.forEach((lesson, idx) => {
+                        let expDate = lesson.expectedDate || '';
+                        if (regTkb.length > 0) {
+                            const tkbSlot = regTkb[idx % regTkb.length];
+                            expDate = getDateForWeekDay(w, tkbSlot.dayOfWeek, schoolYearStart);
+                        }
+                        updated.push({ ...lesson, expectedDate: expDate });
+                    });
+
+                    // Specialized lessons in week w
+                    const specLessons = classLessons
+                        .filter(c => parseInt(c.week) === w && c.topic === 'Chuyên đề')
+                        .sort((a, b) => parseInt(a.period) - parseInt(b.period));
+
+                    specLessons.forEach((lesson, idx) => {
+                        let expDate = lesson.expectedDate || '';
+                        if (specTkb.length > 0) {
+                            const tkbSlot = specTkb[idx % specTkb.length];
+                            expDate = getDateForWeekDay(w, tkbSlot.dayOfWeek, schoolYearStart);
+                        }
+                        updated.push({ ...lesson, expectedDate: expDate });
+                    });
+                });
+            });
+
+            const processedIds = new Set(updated.map(u => u.id));
+            curriculum.forEach(c => {
+                if (!processedIds.has(c.id)) {
+                    updated.push({ ...c });
+                }
+            });
+
+            return updated;
+        };
+
+        // Helper to match a specific TKB slot with its corresponding lesson in Báo Giảng
+        const getLessonForTkbSlot = (tkb, dayInfo, weekNum, curriculum, progress, timetable) => {
+            const isSpec = tkb.subjectType === 'specialized';
+            const cId = tkb.classId;
+
+            // 1. Check if already taught on this exact date and period
+            const taughtProg = progress.find(p =>
+                p.classId === cId &&
+                p.actualDate === dayInfo.dateString &&
+                (p.period === tkb.period || p.tkbId === tkb.id)
+            );
+            if (taughtProg) {
+                const taughtLesson = curriculum.find(c => c.id === taughtProg.curriculumId);
+                if (taughtLesson) return { lesson: taughtLesson, isTaught: true, progressRecord: taughtProg };
+            }
+
+            // 2. Check if taught by date matching subject type
+            const taughtProgByDate = progress.find(p => {
+                if (p.classId !== cId || p.actualDate !== dayInfo.dateString) return false;
+                const l = curriculum.find(c => c.id === p.curriculumId);
+                return l && (isSpec ? l.topic === 'Chuyên đề' : l.topic !== 'Chuyên đề');
+            });
+            if (taughtProgByDate) {
+                const taughtLesson = curriculum.find(c => c.id === taughtProgByDate.curriculumId);
+                if (taughtLesson) return { lesson: taughtLesson, isTaught: true, progressRecord: taughtProgByDate };
+            }
+
+            // 3. Match by TKB slot sequence in the week
+            const weekSlots = timetable
+                .filter(t => t.classId === cId && (isSpec ? t.subjectType === 'specialized' : t.subjectType !== 'specialized'))
+                .sort((a, b) => a.dayOfWeek !== b.dayOfWeek ? a.dayOfWeek - b.dayOfWeek : a.period - b.period);
+
+            const slotIndex = weekSlots.findIndex(t => t.id === tkb.id);
+
+            const weekLessons = curriculum
+                .filter(c => c.classId === cId && parseInt(c.week) === parseInt(weekNum) && (isSpec ? c.topic === 'Chuyên đề' : c.topic !== 'Chuyên đề'))
+                .sort((a, b) => parseInt(a.period) - parseInt(b.period));
+
+            if (slotIndex >= 0 && slotIndex < weekLessons.length) {
+                const matchedLesson = weekLessons[slotIndex];
+                const isDone = progress.some(p => p.curriculumId === matchedLesson.id);
+                return { lesson: matchedLesson, isTaught: isDone, progressRecord: progress.find(p => p.curriculumId === matchedLesson.id) };
+            }
+
+            // 4. Fallback by expectedDate
+            if (dayInfo.dateString) {
+                const matchedByDate = curriculum.find(c =>
+                    c.classId === cId &&
+                    c.expectedDate === dayInfo.dateString &&
+                    (isSpec ? c.topic === 'Chuyên đề' : c.topic !== 'Chuyên đề')
+                );
+                if (matchedByDate) {
+                    const isDone = progress.some(p => p.curriculumId === matchedByDate.id);
+                    return { lesson: matchedByDate, isTaught: isDone, progressRecord: progress.find(p => p.curriculumId === matchedByDate.id) };
+                }
+            }
+
+            // 5. Fallback to first untaught lesson
+            const untaught = curriculum
+                .filter(c => c.classId === cId && (isSpec ? c.topic === 'Chuyên đề' : c.topic !== 'Chuyên đề') && !progress.some(p => p.curriculumId === c.id))
+                .sort((a, b) => parseInt(a.week) !== parseInt(b.week) ? parseInt(a.week) - parseInt(b.week) : parseInt(a.period) - parseInt(b.period))[0];
+
+            if (untaught) {
+                return { lesson: untaught, isTaught: false, progressRecord: null, isEstimated: true };
+            }
+
+            return { lesson: null, isTaught: false, progressRecord: null };
+        };
+
+        // Build pre-populated initial data
+        const buildInitialData = () => {
+            const schoolYearStart = '2026-09-07';
+            const classes = [
+                { id: 'c1', name: '10A1', note: 'Ban KHTN - Toán Chuyên Đề' },
+                { id: 'c2', name: '10A2', note: 'Ban Cơ bản' }
+            ];
+
+            const timetable = [
+                // 10A1: Mon p1, Mon p2, Wed p3, Fri p4 (spec)
+                { id: generateId(), dayOfWeek: 2, period: 1, classId: 'c1', subjectType: 'regular' },
+                { id: generateId(), dayOfWeek: 2, period: 2, classId: 'c1', subjectType: 'regular' },
+                { id: generateId(), dayOfWeek: 4, period: 3, classId: 'c1', subjectType: 'regular' },
+                { id: generateId(), dayOfWeek: 6, period: 4, classId: 'c1', subjectType: 'specialized' },
+                // 10A2: Tue p1, Tue p2, Thu p3, Sat p4 (spec)
+                { id: generateId(), dayOfWeek: 3, period: 1, classId: 'c2', subjectType: 'regular' },
+                { id: generateId(), dayOfWeek: 3, period: 2, classId: 'c2', subjectType: 'regular' },
+                { id: generateId(), dayOfWeek: 5, period: 3, classId: 'c2', subjectType: 'regular' },
+                { id: generateId(), dayOfWeek: 7, period: 4, classId: 'c2', subjectType: 'specialized' },
+            ];
+
+            // Build curriculum for both classes
+            const curriculum = [];
+            classes.forEach(c => {
+                K10_TEMPLATE_LESSONS.forEach(tmpl => {
+                    curriculum.push({
+                        id: generateId(),
+                        classId: c.id,
+                        week: tmpl.week,
+                        period: tmpl.period,
+                        lessonName: tmpl.lessonName,
+                        topic: tmpl.topic,
+                        expectedDate: ''
+                    });
+                });
+            });
+
+            const syncedCurriculum = recomputeAllCurriculumDates(curriculum, timetable, schoolYearStart);
+
+            const students = [
+                { id: generateId(), classId: 'c1', name: 'Nguyễn Văn An', note: 'Lớp trưởng' },
+                { id: generateId(), classId: 'c1', name: 'Trần Thị Bình', note: 'Bí thư' },
+                { id: generateId(), classId: 'c1', name: 'Lê Hoàng Cường', note: 'Tổ trưởng tổ 1' },
+                { id: generateId(), classId: 'c1', name: 'Phạm Minh Đức', note: 'Thành viên' },
+                { id: generateId(), classId: 'c1', name: 'Võ Ngọc Hân', note: 'Thành viên' },
+                { id: generateId(), classId: 'c2', name: 'Đỗ Hữu Nghĩa', note: 'Lớp trưởng' },
+                { id: generateId(), classId: 'c2', name: 'Bùi Tuyết Mai', note: 'Bí thư' },
+                { id: generateId(), classId: 'c2', name: 'Hoàng Quốc Việt', note: 'Thành viên' }
+            ];
+
+            return {
+                teacher: {
+                    name: 'Ngọc Thái',
+                    subject: 'Toán học',
+                    schoolYear: '2026-2027',
+                    currentWeek: 1,
+                    schoolYearStart: schoolYearStart
+                },
+                classes,
+                students,
+                attendance: [],
+                bonusPoints: [],
+                curriculum: syncedCurriculum,
+                progress: [],
+                tasks: [
+                    { id: generateId(), title: 'Chuẩn bị giáo án Tuần 1: Mệnh đề & Hệ PT 3 ẩn', dueDate: '2026-09-06', completed: true },
+                    { id: generateId(), title: 'Nộp kế hoạch dạy học bộ môn cho Tổ trưởng', dueDate: '2026-09-10', completed: false }
+                ],
+                timetable,
+                settings: {
+                    attendanceWarning: 3,
+                    progressWarning: 2
+                }
+            };
+        };
+
+        // ============================================================
+        // 3. REUSABLE UI COMPONENTS
+        // ============================================================
+        const Card = ({ children, title, icon, action, className = '' }) => (
+            <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden ${className}`}>
+                {(title || action) && (
+                    <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div className="flex items-center gap-2.5">
+                            {icon && <i className={`${icon} text-indigo-600 text-lg`}></i>}
+                            <h3 className="font-bold text-slate-800 text-base">{title}</h3>
+                        </div>
+                        {action && <div>{action}</div>}
+                    </div>
+                )}
+                <div className="p-6">{children}</div>
+            </div>
+        );
+
+        const Button = ({ children, onClick, variant = 'primary', icon, className = '', type = 'button', disabled = false, title = '' }) => {
+            const baseStyles = 'inline-flex items-center justify-center font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2';
+            const variants = {
+                primary: 'bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-500 shadow-indigo-100',
+                secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 focus:ring-slate-300',
+                success: 'bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500 shadow-emerald-100',
+                danger: 'bg-rose-600 hover:bg-rose-700 text-white focus:ring-rose-500 shadow-rose-100',
+                amber: 'bg-amber-500 hover:bg-amber-600 text-white focus:ring-amber-400 shadow-amber-100'
+            };
+            return (
+                <button type={type} onClick={onClick} disabled={disabled} title={title} className={`${baseStyles} ${variants[variant] || variants.primary} ${className}`}>
+                    {icon && <i className={`${icon} ${children ? 'mr-2' : ''}`}></i>}
+                    {children}
+                </button>
+            );
+        };
+
+        const Input = ({ label, hint, error, ...props }) => (
+            <div className="w-full">
+                {label && <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">{label}</label>}
+                <input {...props} className={`w-full px-3.5 py-2.5 bg-white border rounded-xl text-sm font-medium text-slate-800 transition-all outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 ${error ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 hover:border-slate-300'} ${props.className || ''}`} />
+                {hint && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
+                {error && <p className="text-xs text-rose-500 mt-1 font-medium">{error}</p>}
+            </div>
+        );
+
+        const Select = ({ label, hint, children, ...props }) => (
+            <div className="w-full">
+                {label && <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">{label}</label>}
+                <select {...props} className={`w-full px-3.5 py-2.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-800 transition-all outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 ${props.className || ''}`}>
+                    {children}
+                </select>
+                {hint && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
+            </div>
+        );
+
+        const EmptyState = ({ message, icon = 'fa-inbox', action }) => (
+            <div className="text-center py-12 px-4 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
+                <i className={`fa-solid ${icon} text-4xl text-slate-300 mb-3`}></i>
+                <p className="text-sm font-medium text-slate-500 mb-4">{message}</p>
+                {action}
+            </div>
+        );
+
+        const ProgressBar = ({ value, max, colorClass = 'bg-indigo-600' }) => {
+            const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+            return (
+                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-300 ${colorClass}`} style={{ width: `${percent}%` }}></div>
+                </div>
+            );
+        };
+
+        const Modal = ({ isOpen, onClose, title, children }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+                    <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+                            <h3 className="font-bold text-slate-800 text-lg">{title}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors">
+                                <i className="fa-solid fa-xmark text-lg"></i>
+                            </button>
+                        </div>
+                        <div className="p-6 max-h-[80vh] overflow-y-auto custom-scroll">{children}</div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================================
+        // 4. MAIN APP CONTAINER
+        // ============================================================
+        const App = () => {
+            const [data, setData] = useState(() => {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.curriculum && parsed.curriculum.length > 0) {
+                            if (parsed.teacher && parsed.teacher.name === 'Nguyễn Thầy') {
+                                parsed.teacher.name = 'Ngọc Thái';
+                            }
+                            return parsed;
+                        }
+                    } catch (e) { console.error(e); }
+                }
+                return buildInitialData();
+            });
+
+            const [currentView, setCurrentView] = useState('journal');
+            const [toast, setToast] = useState(null);
+            const [confirmDialog, setConfirmDialog] = useState(null);
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+
+            // Save data to localStorage
+            useEffect(() => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            }, [data]);
+
+            const showToast = (message, type = 'success') => {
+                setToast({ message, type });
+                setTimeout(() => setToast(null), 3500);
+            };
+
+            const confirmAction = (message, onConfirm) => {
+                setConfirmDialog({ message, onConfirm });
+            };
+
+            const updateData = (key, newValue) => {
+                setData(prev => ({ ...prev, [key]: newValue }));
+            };
+
+            // Calculated current week based on schoolYearStart
+            const currentWeek = useMemo(() => {
+                if (!data.teacher.schoolYearStart) return data.teacher.currentWeek || 1;
+                return getWeekNumberFromDate(getToday(), data.teacher.schoolYearStart);
+            }, [data.teacher.schoolYearStart, data.teacher.currentWeek]);
+
+            const navItems = [
+                { id: 'dashboard', label: 'Tổng quan', icon: 'fa-solid fa-chart-pie' },
+                { id: 'journal', label: 'Sổ Báo Giảng', icon: 'fa-solid fa-book-open', highlight: true },
+                { id: 'timetable', label: 'Thời Khóa Biểu', icon: 'fa-solid fa-calendar-days' },
+                { id: 'curriculum', label: 'PPCT (Kế hoạch bài dạy)', icon: 'fa-solid fa-list-check' },
+                { id: 'students', label: 'Học sinh & Lớp', icon: 'fa-solid fa-user-group' },
+                { id: 'attendance', label: 'Điểm danh', icon: 'fa-solid fa-clipboard-user' },
+                { id: 'bonus', label: 'Điểm cộng / trừ', icon: 'fa-solid fa-star' },
+                { id: 'tasks', label: 'Nhiệm vụ', icon: 'fa-solid fa-list-check' },
+                { id: 'settings', label: 'Cài đặt', icon: 'fa-solid fa-gear' },
+            ];
+
+            // ============================================================
+            // VIEW: TỔNG QUAN (DASHBOARD)
+            // ============================================================
+            const DashboardView = () => {
+                const today = getToday();
+                const todayDayOfWeek = getCurrentDayOfWeek();
+                const todayTkb = data.timetable.filter(t => t.dayOfWeek === todayDayOfWeek).sort((a, b) => a.period - b.period);
+
+                const totalCurriculum = data.curriculum.length;
+                const totalTaught = data.progress.length;
+                const overdueCount = data.curriculum.filter(c => c.expectedDate && c.expectedDate < today && !data.progress.some(p => p.curriculumId === c.id)).length;
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        {/* Hero Header */}
+                        <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-6 md:p-8 text-white shadow-xl shadow-indigo-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold mb-3">
+                                    <i className="fa-solid fa-school"></i> Năm học {data.teacher.schoolYear} · Tuần {currentWeek}
+                                </div>
+                                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Xin chào, Thầy/Cô {data.teacher.name}!</h1>
+                                <p className="text-indigo-100 text-sm mt-1">Môn giảng dạy: <span className="font-bold">{data.teacher.subject}</span> · Hôm nay là {DAY_NAMES[todayDayOfWeek]}, {formatDate(today)}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                <Button onClick={() => setCurrentView('journal')} icon="fa-solid fa-book-open" className="bg-white text-indigo-700 hover:bg-indigo-50 shadow-none">Xem Báo Giảng</Button>
+                                <Button onClick={() => setCurrentView('curriculum')} icon="fa-solid fa-file-import" variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border-white/20">Quản lý PPCT</Button>
+                            </div>
+                        </div>
+
+                        {/* Metric Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                            <Card className="border-l-4 border-l-indigo-600">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hôm nay ({DAY_NAMES[todayDayOfWeek]})</p>
+                                        <h3 className="text-2xl font-black text-slate-800 mt-1">{todayTkb.length} <span className="text-sm font-normal text-slate-500">tiết dạy</span></h3>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl"><i className="fa-solid fa-calendar-day"></i></div>
+                                </div>
+                            </Card>
+                            <Card className="border-l-4 border-l-emerald-600">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tiến độ PPCT</p>
+                                        <h3 className="text-2xl font-black text-slate-800 mt-1">{totalTaught}/{totalCurriculum} <span className="text-sm font-normal text-slate-500">tiết</span></h3>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl"><i className="fa-solid fa-circle-check"></i></div>
+                                </div>
+                                <div className="mt-3"><ProgressBar value={totalTaught} max={totalCurriculum} colorClass="bg-emerald-500" /></div>
+                            </Card>
+                            <Card className="border-l-4 border-l-rose-500">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tiết chậm/Chưa dạy</p>
+                                        <h3 className="text-2xl font-black text-rose-600 mt-1">{overdueCount} <span className="text-sm font-normal text-slate-500">tiết</span></h3>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl"><i className="fa-solid fa-triangle-exclamation"></i></div>
+                                </div>
+                            </Card>
+                            <Card className="border-l-4 border-l-amber-500">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Lớp phụ trách</p>
+                                        <h3 className="text-2xl font-black text-slate-800 mt-1">{data.classes.length} <span className="text-sm font-normal text-slate-500">lớp</span></h3>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl"><i className="fa-solid fa-users"></i></div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Today's Schedule & Action */}
+                        <Card title={`Lịch Dạy Hôm Nay · ${DAY_NAMES[todayDayOfWeek]} (${formatDate(today)})`} icon="fa-solid fa-clock" action={
+                            <Button onClick={() => setCurrentView('journal')} variant="secondary" className="text-xs">Xem cả tuần</Button>
+                        }>
+                            {todayTkb.length === 0 ? (
+                                <EmptyState message="Hôm nay bạn không có tiết dạy theo TKB. Nghỉ ngơi hoặc chuẩn bị giáo án nhé!" icon="fa-mug-hot" />
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {todayTkb.map(tkb => {
+                                        const cls = data.classes.find(c => c.id === tkb.classId);
+                                        const dayInfo = { dayOfWeek: todayDayOfWeek, dateString: today };
+                                        const { lesson, isTaught } = getLessonForTkbSlot(tkb, dayInfo, currentWeek, data.curriculum, data.progress, data.timetable);
+
+                                        return (
+                                            <div key={tkb.id} className="py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 font-extrabold flex items-center justify-center border border-indigo-100 text-sm">T{tkb.period}</span>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-extrabold text-slate-800">{cls ? cls.name : 'Lớp đã xóa'}</span>
+                                                            {tkb.subjectType === 'specialized' ? (
+                                                                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded">Chuyên đề</span>
+                                                            ) : (
+                                                                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-blue-100 text-blue-700 border border-blue-200 rounded">Chính khóa</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-slate-600 mt-0.5 font-medium">
+                                                            {lesson ? (
+                                                                <span><strong className="text-slate-800">Tiết {lesson.period}:</strong> {lesson.lessonName}</span>
+                                                            ) : (
+                                                                <span className="italic text-slate-400">Chưa thiết lập PPCT cho tiết này</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {isTaught ? (
+                                                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5">
+                                                            <i className="fa-solid fa-check"></i> Đã dạy
+                                                        </span>
+                                                    ) : (
+                                                        <Button
+                                                            onClick={() => {
+                                                                if (!lesson) return showToast('Chưa có bài học trong PPCT!', 'error');
+                                                                const newProg = { id: generateId(), curriculumId: lesson.id, classId: tkb.classId, actualDate: today, period: tkb.period, tkbId: tkb.id, status: 'Đã dạy', note: '' };
+                                                                updateData('progress', [...data.progress, newProg]);
+                                                                showToast(`Đã báo giảng: ${cls ? cls.name : ''} - Tiết ${lesson.period}!`);
+                                                            }}
+                                                            icon="fa-solid fa-check"
+                                                            className="text-xs py-1.5"
+                                                        >
+                                                            Báo giảng
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+                );
+            };
+
+            // ============================================================
+            // VIEW: SỔ BÁO GIẢNG (LỊCH BÁO GIẢNG CHÍNH XÁC THEO TUẦN)
+            // ============================================================
+            const JournalView = () => {
+                const [selectedWeek, setSelectedWeek] = useState(currentWeek);
+                const [filterClass, setFilterClass] = useState('');
+
+                // Calculate full 7-day schedule for selected week
+                const weekDates = useMemo(() => {
+                    return getWeekDatesForWeekNum(selectedWeek, data.teacher.schoolYearStart);
+                }, [selectedWeek, data.teacher.schoolYearStart]);
+
+                const handleToggleTaught = (lesson, tkb, dayInfo) => {
+                    if (!lesson) return;
+                    const existingProg = data.progress.find(p =>
+                        p.curriculumId === lesson.id ||
+                        (p.classId === tkb.classId && p.actualDate === dayInfo.dateString && p.period === tkb.period)
+                    );
+
+                    if (existingProg) {
+                        updateData('progress', data.progress.filter(p => p.id !== existingProg.id));
+                        showToast('Đã hủy báo giảng!');
+                    } else {
+                        const newProg = {
+                            id: generateId(),
+                            curriculumId: lesson.id,
+                            classId: tkb.classId,
+                            actualDate: dayInfo.dateString || getToday(),
+                            period: tkb.period,
+                            tkbId: tkb.id,
+                            status: 'Đã dạy',
+                            note: ''
+                        };
+                        updateData('progress', [...data.progress, newProg]);
+                        showToast('Đã đánh dấu báo giảng thành công! ✅');
+                    }
+                };
+
+                const handleMarkWeekTaught = () => {
+                    const newProgressItems = [];
+                    weekDates.forEach(dayInfo => {
+                        const dayTkb = data.timetable.filter(t => t.dayOfWeek === dayInfo.dayOfWeek && (!filterClass || t.classId === filterClass));
+                        dayTkb.forEach(tkb => {
+                            const { lesson, isTaught } = getLessonForTkbSlot(tkb, dayInfo, selectedWeek, data.curriculum, data.progress, data.timetable);
+                            if (lesson && !isTaught) {
+                                newProgressItems.push({
+                                    id: generateId(),
+                                    curriculumId: lesson.id,
+                                    classId: tkb.classId,
+                                    actualDate: dayInfo.dateString || getToday(),
+                                    period: tkb.period,
+                                    tkbId: tkb.id,
+                                    status: 'Đã dạy',
+                                    note: ''
+                                });
+                            }
+                        });
+                    });
+
+                    if (newProgressItems.length === 0) return showToast('Tất cả các tiết trong tuần đã được báo giảng!');
+                    updateData('progress', [...data.progress, ...newProgressItems]);
+                    showToast(`✅ Đã báo giảng nhanh ${newProgressItems.length} tiết trong Tuần ${selectedWeek}!`);
+                };
+
+                const today = getToday();
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        {/* Header & Controls */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm no-print">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                    <i className="fa-solid fa-book-open text-indigo-600"></i>
+                                    Sổ Báo Giảng & Lịch Dạy
+                                </h2>
+                                <p className="text-sm text-slate-500 mt-1">Khớp chính xác giữa Kế hoạch bài dạy (PPCT) và Thời khóa biểu từng lớp</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                                    <button onClick={() => setSelectedWeek(w => Math.max(1, w - 1))} className="p-2 hover:bg-white rounded-lg text-slate-600 transition-colors" title="Tuần trước"><i className="fa-solid fa-chevron-left"></i></button>
+                                    <span className="px-3 font-extrabold text-sm text-slate-800">Tuần {selectedWeek}</span>
+                                    <button onClick={() => setSelectedWeek(w => Math.min(52, w + 1))} className="p-2 hover:bg-white rounded-lg text-slate-600 transition-colors" title="Tuần sau"><i className="fa-solid fa-chevron-right"></i></button>
+                                </div>
+                                <Select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="w-36">
+                                    <option value="">Tất cả các lớp</option>
+                                    {data.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </Select>
+                                <Button onClick={handleMarkWeekTaught} icon="fa-solid fa-check-double" variant="success" className="text-xs">Báo giảng cả tuần</Button>
+                                <Button onClick={() => window.print()} icon="fa-solid fa-print" variant="secondary">In Sổ Báo Giảng</Button>
+                            </div>
+                        </div>
+
+                        {/* Printable Header */}
+                        <div className="hidden print-only text-center mb-6">
+                            <h2 className="text-xl font-black uppercase">LỊCH BÁO GIẢNG TUẦN {selectedWeek}</h2>
+                            <p className="text-sm text-slate-600 mt-1">Giáo viên: <strong>{data.teacher.name}</strong> · Môn: <strong>{data.teacher.subject}</strong> · Năm học: <strong>{data.teacher.schoolYear}</strong></p>
+                        </div>
+
+                        {/* Alert if no SchoolYearStart or Timetable */}
+                        {(!data.teacher.schoolYearStart || data.timetable.length === 0 || data.curriculum.length === 0) && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 no-print">
+                                <i className="fa-solid fa-triangle-exclamation text-amber-500 text-xl mt-0.5 shrink-0"></i>
+                                <div className="text-sm text-amber-800 space-y-1">
+                                    <p className="font-bold">Lưu ý để có Sổ Báo Giảng chính xác 100%:</p>
+                                    <ul className="list-disc list-inside text-xs space-y-0.5 text-amber-700">
+                                        {!data.teacher.schoolYearStart && <li>Chưa đặt <b>Ngày bắt đầu năm học</b> (Vào tab <b>Thời Khóa Biểu</b> hoặc <b>Cài đặt</b> để chọn ngày).</li>}
+                                        {data.timetable.length === 0 && <li>Chưa cài đặt <b>Thời Khóa Biểu</b> các ngày trong tuần.</li>}
+                                        {data.curriculum.length === 0 && <li>Chưa dán phân phối chương trình (Vào tab <b>PPCT</b> để dán từ file Excel).</li>}
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Days of Week List */}
+                        <div className="space-y-4">
+                            {weekDates.map(dayInfo => {
+                                const dayTkb = data.timetable
+                                    .filter(t => t.dayOfWeek === dayInfo.dayOfWeek && (!filterClass || t.classId === filterClass))
+                                    .sort((a, b) => a.period - b.period);
+
+                                const isToday = dayInfo.dateString === today;
+                                const isPast = dayInfo.dateString && dayInfo.dateString < today;
+
+                                return (
+                                    <div key={dayInfo.dayOfWeek} className={`bg-white rounded-2xl border transition-all overflow-hidden ${isToday ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-md' : 'border-slate-200 shadow-sm'}`}>
+                                        <div className={`px-5 py-3 border-b flex justify-between items-center ${isToday ? 'bg-indigo-50/70 border-indigo-100' : 'bg-slate-50/60 border-slate-100'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <span className={`font-black text-base ${isToday ? 'text-indigo-900' : 'text-slate-800'}`}>{dayInfo.dayName}</span>
+                                                {dayInfo.displayDate && (
+                                                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${isToday ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200'}`}>
+                                                        {dayInfo.displayDate} {isToday && '· Hôm nay'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-xs font-bold text-slate-400">{dayTkb.length} tiết</span>
+                                        </div>
+
+                                        <div className="p-3">
+                                            {dayTkb.length === 0 ? (
+                                                <div className="py-4 text-center text-slate-400 text-xs font-medium"><i className="fa-solid fa-mug-hot mr-1.5"></i>Không có tiết dạy</div>
+                                            ) : (
+                                                <div className="divide-y divide-slate-100">
+                                                    {dayTkb.map(tkb => {
+                                                        const cls = data.classes.find(c => c.id === tkb.classId);
+                                                        const { lesson, isTaught } = getLessonForTkbSlot(tkb, dayInfo, selectedWeek, data.curriculum, data.progress, data.timetable);
+
+                                                        return (
+                                                            <div key={tkb.id} className="py-3 px-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 hover:bg-slate-50/80 rounded-xl transition-colors">
+                                                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                                    <div className="w-12 h-10 rounded-xl bg-slate-100 text-slate-700 font-black text-xs flex items-center justify-center border border-slate-200 shrink-0">
+                                                                        Tiết {tkb.period}
+                                                                    </div>
+                                                                    <div className="w-20 shrink-0">
+                                                                        <div className="font-extrabold text-slate-800 text-sm">{cls ? cls.name : '—'}</div>
+                                                                        {tkb.subjectType === 'specialized' ? (
+                                                                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded">Chuyên đề</span>
+                                                                        ) : (
+                                                                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded">Chính khóa</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0 pr-2">
+                                                                        {lesson ? (
+                                                                            <div>
+                                                                                <div className="font-bold text-slate-800 text-sm leading-snug">
+                                                                                    <span className="text-indigo-600 mr-1.5 font-extrabold">Tiết {lesson.period}:</span>
+                                                                                    {lesson.lessonName}
+                                                                                </div>
+                                                                                {lesson.topic && lesson.topic !== 'Chuyên đề' && (
+                                                                                    <span className="text-xs text-slate-400 font-normal">{lesson.topic}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-xs italic text-slate-400">Chưa có bài dạy trong PPCT Tuần {selectedWeek}</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center no-print">
+                                                                    {isTaught ? (
+                                                                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+                                                                            <i className="fa-solid fa-check"></i> Đã dạy
+                                                                        </span>
+                                                                    ) : isPast ? (
+                                                                        <span className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg">
+                                                                            ⚠ Chưa dạy
+                                                                        </span>
+                                                                    ) : isToday ? (
+                                                                        <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-lg">
+                                                                            📌 Cần dạy
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-xs font-medium text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg">
+                                                                            Dự kiến
+                                                                        </span>
+                                                                    )}
+
+                                                                    {lesson && (
+                                                                        <button
+                                                                            onClick={() => handleToggleTaught(lesson, tkb, dayInfo)}
+                                                                            className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all ${isTaught ? 'bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border-slate-200' : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent'}`}
+                                                                        >
+                                                                            {isTaught ? (<span><i className="fa-solid fa-rotate-left mr-1"></i>Hủy</span>) : (<span><i className="fa-solid fa-check mr-1"></i>Báo giảng</span>)}
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            };
+
+            // ============================================================
+            // VIEW: CÀI ĐẶT THỜI KHÓA BIỂU
+            // ============================================================
+            const TimetableView = () => {
+                const [form, setForm] = useState({
+                    dayOfWeek: '2',
+                    period: '1',
+                    classId: data.classes[0]?.id || '',
+                    subjectType: 'regular'
+                });
+
+                const days = [2, 3, 4, 5, 6, 7];
+
+                const handleAddTkb = (e) => {
+                    e.preventDefault();
+                    if (!form.classId) return showToast('Vui lòng chọn lớp học!', 'error');
+
+                    const newEntry = {
+                        id: generateId(),
+                        dayOfWeek: parseInt(form.dayOfWeek),
+                        period: parseInt(form.period),
+                        classId: form.classId,
+                        subjectType: form.subjectType
+                    };
+
+                    const updatedTkb = [...data.timetable, newEntry];
+                    updateData('timetable', updatedTkb);
+
+                    // Auto recalculate curriculum dates
+                    if (data.teacher.schoolYearStart && data.curriculum.length > 0) {
+                        const syncedCurriculum = recomputeAllCurriculumDates(data.curriculum, updatedTkb, data.teacher.schoolYearStart);
+                        updateData('curriculum', syncedCurriculum);
+                    }
+
+                    showToast('Đã thêm tiết vào Thời Khóa Biểu & Tự động đồng bộ Báo Giảng! ✅');
+                };
+
+                const handleDeleteTkb = (id) => {
+                    confirmAction('Xóa tiết dạy này khỏi TKB?', () => {
+                        const updatedTkb = data.timetable.filter(t => t.id !== id);
+                        updateData('timetable', updatedTkb);
+                        if (data.teacher.schoolYearStart && data.curriculum.length > 0) {
+                            const syncedCurriculum = recomputeAllCurriculumDates(data.curriculum, updatedTkb, data.teacher.schoolYearStart);
+                            updateData('curriculum', syncedCurriculum);
+                        }
+                        showToast('Đã xóa tiết khỏi TKB!');
+                    });
+                };
+
+                const handleUpdateSchoolYearStart = (newDate) => {
+                    const updatedTeacher = { ...data.teacher, schoolYearStart: newDate };
+                    updateData('teacher', updatedTeacher);
+                    if (newDate && data.curriculum.length > 0 && data.timetable.length > 0) {
+                        const syncedCurriculum = recomputeAllCurriculumDates(data.curriculum, data.timetable, newDate);
+                        updateData('curriculum', syncedCurriculum);
+                    }
+                    showToast('Đã lưu Ngày bắt đầu năm học & cập nhật toàn bộ ngày dự kiến! ✅');
+                };
+
+                const handleLoadSampleTkb = () => {
+                    if (data.classes.length === 0) return showToast('Chưa có lớp học nào!', 'error');
+                    const c1 = data.classes[0]?.id;
+                    const c2 = data.classes[1]?.id || c1;
+
+                    const sampleTkb = [
+                        { id: generateId(), dayOfWeek: 2, period: 1, classId: c1, subjectType: 'regular' },
+                        { id: generateId(), dayOfWeek: 2, period: 2, classId: c1, subjectType: 'regular' },
+                        { id: generateId(), dayOfWeek: 4, period: 3, classId: c1, subjectType: 'regular' },
+                        { id: generateId(), dayOfWeek: 6, period: 4, classId: c1, subjectType: 'specialized' },
+                    ];
+
+                    if (c2 !== c1) {
+                        sampleTkb.push(
+                            { id: generateId(), dayOfWeek: 3, period: 1, classId: c2, subjectType: 'regular' },
+                            { id: generateId(), dayOfWeek: 3, period: 2, classId: c2, subjectType: 'regular' },
+                            { id: generateId(), dayOfWeek: 5, period: 3, classId: c2, subjectType: 'regular' },
+                            { id: generateId(), dayOfWeek: 7, period: 4, classId: c2, subjectType: 'specialized' }
+                        );
+                    }
+
+                    updateData('timetable', sampleTkb);
+                    if (data.teacher.schoolYearStart && data.curriculum.length > 0) {
+                        const synced = recomputeAllCurriculumDates(data.curriculum, sampleTkb, data.teacher.schoolYearStart);
+                        updateData('curriculum', synced);
+                    }
+                    showToast('Đã nạp Thời khóa biểu mẫu (3 tiết chính khóa + 1 tiết chuyên đề/tuần)! ✅');
+                };
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                    <i className="fa-solid fa-calendar-days text-indigo-600"></i>
+                                    Cài Đặt Thời Khóa Biểu
+                                </h2>
+                                <p className="text-sm text-slate-500 mt-1">Thiết lập lịch dạy trong tuần để hệ thống tự động gán ngày cho bài học và lập Sổ Báo Giảng</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <Button onClick={handleLoadSampleTkb} icon="fa-solid fa-wand-magic-sparkles" variant="secondary" className="text-xs">Nạp TKB Mẫu</Button>
+                                <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-2xl">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-indigo-700 uppercase tracking-wider">Ngày Bắt Đầu Năm Học</label>
+                                        <input
+                                            type="date"
+                                            value={data.teacher.schoolYearStart || ''}
+                                            onChange={e => handleUpdateSchoolYearStart(e.target.value)}
+                                            className="bg-white border border-indigo-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Add Period Form */}
+                        <Card title="Thêm Tiết Dạy Vào Thời Khóa Biểu" icon="fa-solid fa-plus-circle">
+                            <form onSubmit={handleAddTkb} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                                <Select label="Thứ trong tuần" value={form.dayOfWeek} onChange={e => setForm({ ...form, dayOfWeek: e.target.value })}>
+                                    {days.map(d => <option key={d} value={d}>{DAY_NAMES[d]}</option>)}
+                                </Select>
+                                <Select label="Tiết dạy (trong ngày)" value={form.period} onChange={e => setForm({ ...form, period: e.target.value })}>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(p => <option key={p} value={p}>Tiết {p}</option>)}
+                                </Select>
+                                <Select label="Lớp giảng dạy" value={form.classId} onChange={e => setForm({ ...form, classId: e.target.value })}>
+                                    <option value="">-- Chọn lớp --</option>
+                                    {data.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </Select>
+                                <Select label="Loại tiết" value={form.subjectType} onChange={e => setForm({ ...form, subjectType: e.target.value })}>
+                                    <option value="regular">Chính khóa</option>
+                                    <option value="specialized">Chuyên đề</option>
+                                </Select>
+                                <Button type="submit" icon="fa-solid fa-plus" className="w-full">Thêm Tiết</Button>
+                            </form>
+                        </Card>
+
+                        {/* Timetable Grid View */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {days.map(day => {
+                                const dayTkb = data.timetable.filter(t => t.dayOfWeek === day).sort((a, b) => a.period - b.period);
+                                return (
+                                    <div key={day} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
+                                        <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+                                            <span className="font-extrabold text-slate-800">{DAY_NAMES[day]}</span>
+                                            <span className="text-xs font-bold px-2 py-0.5 bg-white border border-slate-200 rounded-md text-slate-500">{dayTkb.length} tiết</span>
+                                        </div>
+                                        <div className="p-3 flex-1 flex flex-col">
+                                            {dayTkb.length === 0 ? (
+                                                <div className="m-auto text-center py-6 text-slate-300 text-xs font-medium"><i className="fa-solid fa-mug-hot mr-1"></i>Trống tiết</div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {dayTkb.map(tkb => {
+                                                        const cls = data.classes.find(c => c.id === tkb.classId);
+                                                        return (
+                                                            <div key={tkb.id} className="p-3 bg-white rounded-xl border border-slate-100 hover:border-indigo-200 hover:shadow-sm transition-all flex justify-between items-center group">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-700 font-extrabold text-xs flex items-center justify-center border border-indigo-100">T{tkb.period}</span>
+                                                                    <div>
+                                                                        <div className="font-extrabold text-slate-800 text-sm">{cls ? cls.name : 'Lớp đã xóa'}</div>
+                                                                        <div className="text-[10px] font-bold text-slate-400">
+                                                                            {tkb.subjectType === 'specialized' ? <span className="text-amber-600 font-bold uppercase">Chuyên đề</span> : 'Chính khóa'}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <button onClick={() => handleDeleteTkb(tkb.id)} className="w-8 h-8 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100">
+                                                                    <i className="fa-solid fa-trash-can text-sm"></i>
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            };
+
+            // ============================================================
+            // VIEW: PHÂN PHỐI CHƯƠNG TRÌNH (PPCT - SMART PARSER)
+            // ============================================================
+            const CurriculumView = () => {
+                const [selectedClass, setSelectedClass] = useState(data.classes[0]?.id || '');
+                const [targetScope, setTargetScope] = useState('selected'); // 'selected', 'grade10', 'grade11', 'grade12', 'all'
+                const [isEditing, setIsEditing] = useState(false);
+                const [bulkData, setBulkData] = useState('');
+                const [filterTopic, setFilterTopic] = useState('all');
+                const [filterWeek, setFilterWeek] = useState('all');
+                const [filterGrade, setFilterGrade] = useState('all'); // 'all', '10', '11', '12'
+
+                // Helper to get grade from class name
+                const getClassGrade = (className) => {
+                    const match = className.match(/^(\d{1,2})/);
+                    return match ? match[1] : '';
+                };
+
+                // Filter classes based on grade filter
+                const displayedClasses = useMemo(() => {
+                    if (filterGrade === 'all') return data.classes;
+                    return data.classes.filter(c => getClassGrade(c.name) === filterGrade);
+                }, [data.classes, filterGrade]);
+
+                // Ensure selectedClass is valid
+                useEffect(() => {
+                    if (displayedClasses.length > 0 && !displayedClasses.some(c => c.id === selectedClass)) {
+                        setSelectedClass(displayedClasses[0].id);
+                    }
+                }, [displayedClasses, selectedClass]);
+
+                // Helper to get target class IDs based on scope
+                const getTargetClassIds = (scope) => {
+                    if (scope === 'selected') return selectedClass ? [selectedClass] : [];
+                    if (scope === 'all') return data.classes.map(c => c.id);
+                    if (scope === 'grade10') return data.classes.filter(c => getClassGrade(c.name) === '10').map(c => c.id);
+                    if (scope === 'grade11') return data.classes.filter(c => getClassGrade(c.name) === '11').map(c => c.id);
+                    if (scope === 'grade12') return data.classes.filter(c => getClassGrade(c.name) === '12').map(c => c.id);
+                    return [selectedClass];
+                };
+
+                // Fast Loader for Built-in Templates (K10, K11)
+                const handleQuickLoadTemplate = (gradeNum) => {
+                    const template = gradeNum === 11 ? K11_TEMPLATE_LESSONS : K10_TEMPLATE_LESSONS;
+                    const gradeStr = String(gradeNum);
+                    
+                    // Determine target classes
+                    let targetIds = data.classes.filter(c => getClassGrade(c.name) === gradeStr).map(c => c.id);
+                    if (targetIds.length === 0) {
+                        // If no class of this grade exists, offer to apply to currently selected class
+                        if (selectedClass) {
+                            targetIds = [selectedClass];
+                        } else {
+                            return showToast(`Chưa có lớp thuộc Khối ${gradeNum}. Vui lòng tạo lớp khối ${gradeNum} trước!`, 'error');
+                        }
+                    }
+
+                    const targetClassNames = data.classes.filter(c => targetIds.includes(c.id)).map(c => c.name).join(', ');
+
+                    confirmAction(
+                        `Bạn có chắc chắn muốn NẠP NHANH toàn bộ PPCT Toán ${gradeNum} (140 tiết: 105 chính khóa + 35 chuyên đề) cho lớp [${targetClassNames}]? Dữ liệu PPCT cũ của các lớp này sẽ được thay thế và tự động khớp lịch báo giảng.`,
+                        () => {
+                            const parsedLessons = [];
+                            targetIds.forEach(cId => {
+                                template.forEach(tmpl => {
+                                    parsedLessons.push({
+                                        id: generateId(),
+                                        classId: cId,
+                                        week: tmpl.week,
+                                        period: tmpl.period,
+                                        lessonName: tmpl.lessonName,
+                                        topic: tmpl.topic || '',
+                                        expectedDate: ''
+                                    });
+                                });
+                            });
+
+                            const remaining = data.curriculum.filter(c => !targetIds.includes(c.classId));
+                            const combined = [...remaining, ...parsedLessons];
+                            const synced = recomputeAllCurriculumDates(combined, data.timetable, data.teacher.schoolYearStart);
+                            updateData('curriculum', synced);
+                            showToast(`Đã nạp thành công 140 tiết PPCT Toán ${gradeNum} cho [${targetClassNames}]!`);
+                        }
+                    );
+                };
+
+                // Intelligent Excel Clipboard Parser for Grade/Class
+                const handleBulkPasteCurriculum = (e) => {
+                    e.preventDefault();
+                    const targetIds = getTargetClassIds(targetScope);
+                    if (targetIds.length === 0) {
+                        return showToast('Vui lòng chọn phạm vi lớp áp dụng (hoặc tạo lớp trước khi dán)!', 'error');
+                    }
+
+                    const lines = bulkData.split('\n').filter(l => l.trim() !== '');
+                    if (lines.length === 0) return showToast('Chưa có dữ liệu dán vào!', 'error');
+
+                    const targetClasses = data.classes.filter(c => targetIds.includes(c.id));
+                    const targetNames = targetClasses.map(c => c.name).join(', ');
+                    const parsedLessons = [];
+
+                    let currentWeek = 1;
+                    let lastMainLessonName = '';
+                    let lastSpecLessonName = '';
+
+                    lines.forEach(line => {
+                        const parts = line.replace(/\r/g, '').split('\t').map(p => p.trim());
+
+                        // Check if parts[0] is a week indicator
+                        if (parts[0]) {
+                            const weekMatch = parts[0].match(/^(?:tuần\s*)?(\d{1,2})$/i);
+                            if (weekMatch) {
+                                const w = parseInt(weekMatch[1]);
+                                if (w >= 1 && w <= 52) currentWeek = w;
+                            }
+                        }
+
+                        // Case A: 4 or 5 columns (Tuần, Tiết CT, Tên bài, Tiết CĐ, Tên chuyên đề)
+                        if (parts.length >= 3) {
+                            const regPeriodStr = parts[1] || '';
+                            const regLessonStr = parts[2] || '';
+                            const specPeriodStr = parts[3] || '';
+                            const specLessonStr = parts[4] || '';
+
+                            if (regLessonStr) lastMainLessonName = regLessonStr;
+                            if (specLessonStr) lastSpecLessonName = specLessonStr;
+
+                            const regPeriod = parseInt(regPeriodStr);
+                            const specPeriod = parseInt(specPeriodStr);
+
+                            // Regular lesson
+                            if (!isNaN(regPeriod) && regPeriod > 0) {
+                                targetIds.forEach(cId => {
+                                    parsedLessons.push({
+                                        id: generateId(),
+                                        classId: cId,
+                                        week: currentWeek,
+                                        period: regPeriod,
+                                        lessonName: regLessonStr || lastMainLessonName,
+                                        topic: '',
+                                        expectedDate: ''
+                                    });
+                                });
+                            }
+
+                            // Specialized lesson
+                            if (!isNaN(specPeriod) && specPeriod > 0) {
+                                targetIds.forEach(cId => {
+                                    parsedLessons.push({
+                                        id: generateId(),
+                                        classId: cId,
+                                        week: currentWeek,
+                                        period: specPeriod,
+                                        lessonName: specLessonStr || lastSpecLessonName,
+                                        topic: 'Chuyên đề',
+                                        expectedDate: ''
+                                    });
+                                });
+                            }
+                        }
+                        // Case B: 2 columns (Tiết, Tên bài)
+                        else if (parts.length === 2) {
+                            const pNum = parseInt(parts[0]);
+                            const lName = parts[1];
+                            if (!isNaN(pNum) && lName) {
+                                targetIds.forEach(cId => {
+                                    parsedLessons.push({
+                                        id: generateId(),
+                                        classId: cId,
+                                        week: currentWeek,
+                                        period: pNum,
+                                        lessonName: lName,
+                                        topic: '',
+                                        expectedDate: ''
+                                    });
+                                });
+                            }
+                        }
+                    });
+
+                    if (parsedLessons.length === 0) {
+                        return showToast('Không tìm thấy bài học hợp lệ. Vui lòng copy trực tiếp các hàng từ Excel!', 'error');
+                    }
+
+                    // Remove existing curriculum for target classes
+                    const remainingCurriculum = data.curriculum.filter(c => !targetIds.includes(c.classId));
+                    const combined = [...remainingCurriculum, ...parsedLessons];
+
+                    // Automatically sync with TKB and SchoolYearStart!
+                    const syncedCurriculum = recomputeAllCurriculumDates(combined, data.timetable, data.teacher.schoolYearStart);
+                    updateData('curriculum', syncedCurriculum);
+
+                    const regCount = parsedLessons.filter(l => l.topic !== 'Chuyên đề').length / targetIds.length;
+                    const specCount = parsedLessons.filter(l => l.topic === 'Chuyên đề').length / targetIds.length;
+
+                    showToast(`Đã dán thành công ${regCount + specCount} tiết (${regCount} chính khóa + ${specCount} chuyên đề) cho lớp [${targetNames}]!`);
+                    setBulkData('');
+                    setIsEditing(false);
+                };
+
+                // Quick add class shortcut
+                const handleQuickAddClass = (className) => {
+                    if (data.classes.some(c => c.name.toLowerCase() === className.toLowerCase())) {
+                        return showToast(`Lớp ${className} đã tồn tại!`, 'info');
+                    }
+                    const newClass = { id: generateId(), name: className, note: `Lớp ${className}` };
+                    updateData('classes', [...data.classes, newClass]);
+                    setSelectedClass(newClass.id);
+                    showToast(`Đã thêm lớp ${className}!`);
+                };
+
+                // Filtered curriculum list for selected class
+                const classCurriculum = useMemo(() => {
+                    let list = data.curriculum.filter(c => c.classId === selectedClass);
+                    if (filterTopic === 'regular') list = list.filter(c => c.topic !== 'Chuyên đề');
+                    if (filterTopic === 'specialized') list = list.filter(c => c.topic === 'Chuyên đề');
+                    if (filterWeek !== 'all') list = list.filter(c => c.week === parseInt(filterWeek));
+                    return list.sort((a, b) => (a.topic === 'Chuyên đề' ? 1000 : 0) + a.period - ((b.topic === 'Chuyên đề' ? 1000 : 0) + b.period));
+                }, [data.curriculum, selectedClass, filterTopic, filterWeek]);
+
+                const currClassObj = data.classes.find(c => c.id === selectedClass);
+                const regTotal = data.curriculum.filter(c => c.classId === selectedClass && c.topic !== 'Chuyên đề').length;
+                const specTotal = data.curriculum.filter(c => c.classId === selectedClass && c.topic === 'Chuyên đề').length;
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        {/* Header & Quick Action Buttons */}
+                        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                                    <i className="fa-solid fa-list-check text-indigo-600"></i>
+                                    Phân Phối Chương Trình (Kế hoạch bài dạy)
+                                </h2>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Quản lý, nạp nhanh mẫu K10/K11 hoặc dán trực tiếp từ file Excel theo từng khối lớp
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                    onClick={() => handleQuickLoadTemplate(10)}
+                                    icon="fa-solid fa-bolt"
+                                    variant="indigo"
+                                    className="text-xs"
+                                >
+                                    Nạp Nhanh Toán 10 (140t)
+                                </Button>
+                                <Button
+                                    onClick={() => handleQuickLoadTemplate(11)}
+                                    icon="fa-solid fa-bolt"
+                                    variant="purple"
+                                    className="text-xs"
+                                >
+                                    Nạp Nhanh Toán 11 (140t)
+                                </Button>
+                                <Button
+                                    onClick={() => setIsEditing(!isEditing)}
+                                    icon={isEditing ? 'fa-solid fa-eye' : 'fa-solid fa-paste'}
+                                    variant={isEditing ? 'secondary' : 'primary'}
+                                    className="text-xs"
+                                >
+                                    {isEditing ? 'Xem Danh Sách' : 'Dán PPCT Từ Excel'}
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Bulk Paste Area */}
+                        {isEditing && (
+                            <Card className="border-2 border-indigo-200 bg-indigo-50/20">
+                                <form onSubmit={handleBulkPasteCurriculum} className="space-y-4">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-indigo-100">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black">
+                                                <i className="fa-solid fa-clipboard-check"></i>
+                                            </div>
+                                            <div>
+                                                <h3 className="font-extrabold text-slate-800 text-sm">Dán Dữ Liệu Excel Phân Phối Chương Trình</h3>
+                                                <p className="text-xs text-slate-500">Hỗ trợ copy toàn bộ bảng 5 cột từ file K10_CĐ.xlsx hoặc K11.xlsx</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Target Scope Selection */}
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-700">Áp dụng cho:</span>
+                                            <select
+                                                value={targetScope}
+                                                onChange={(e) => setTargetScope(e.target.value)}
+                                                className="px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            >
+                                                <option value="selected">Lớp đang chọn ({currClassObj ? currClassObj.name : 'Chưa chọn'})</option>
+                                                <option value="grade10">Tất cả lớp Khối 10 ({data.classes.filter(c => getClassGrade(c.name) === '10').map(c => c.name).join(', ') || 'Chưa có'})</option>
+                                                <option value="grade11">Tất cả lớp Khối 11 ({data.classes.filter(c => getClassGrade(c.name) === '11').map(c => c.name).join(', ') || 'Chưa có'})</option>
+                                                <option value="grade12">Tất cả lớp Khối 12 ({data.classes.filter(c => getClassGrade(c.name) === '12').map(c => c.name).join(', ') || 'Chưa có'})</option>
+                                                <option value="all">Tất cả các lớp hiện có</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                            Nội dung copy từ Excel (Tuần · Tiết SGK · Tên bài SGK · Tiết CĐ · Tên bài CĐ):
+                                        </label>
+                                        <textarea
+                                            rows={8}
+                                            value={bulkData}
+                                            onChange={(e) => setBulkData(e.target.value)}
+                                            placeholder={"Ví dụ dán từ Excel:\n1\t1\t§1. Giá trị lượng giác của góc lượng giác\t1\tCĐ1- §1. Phép biến hình\n\t2\t§1. Giá trị lượng giác của góc lượng giác\t\t\n\t3\t§1. Giá trị lượng giác của góc lượng giác\t\t\n2\t4\t§2. Công thức lượng giác\t2\tCĐ1-§1. Phép biến hình"}
+                                            className="w-full font-mono text-xs p-3 rounded-2xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white custom-scroll"
+                                        ></textarea>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                        <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                                            <i className="fa-solid fa-circle-info text-indigo-500"></i>
+                                            Hệ thống tự động bỏ qua dòng chữ tiêu đề và khớp ngày báo giảng với Thời khóa biểu của lớp.
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button type="button" variant="secondary" onClick={() => { setIsEditing(false); setBulkData(''); }}>Hủy</Button>
+                                            <Button type="submit" variant="primary" icon="fa-solid fa-cloud-arrow-up">Nạp Dữ Liệu Ngay</Button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </Card>
+                        )}
+
+                        {/* Class and Grade Selector Tabs */}
+                        <div className="space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                {/* Grade Filter Buttons */}
+                                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                                    {[
+                                        { id: 'all', label: 'Tất cả khối' },
+                                        { id: '10', label: 'Khối 10' },
+                                        { id: '11', label: 'Khối 11' },
+                                        { id: '12', label: 'Khối 12' }
+                                    ].map(g => (
+                                        <button
+                                            key={g.id}
+                                            onClick={() => setFilterGrade(g.id)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filterGrade === g.id ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                                        >
+                                            {g.label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Quick Add Grade Class Helper */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-slate-400 font-semibold hidden sm:inline">Tạo nhanh lớp:</span>
+                                    {['10A1', '10A2', '11A1', '11A2', '12A1'].filter(cName => !data.classes.some(c => c.name === cName)).slice(0, 3).map(cName => (
+                                        <button
+                                            key={cName}
+                                            onClick={() => handleQuickAddClass(cName)}
+                                            className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-100 text-[11px] font-bold"
+                                        >
+                                            + {cName}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Class Selection Pills */}
+                            <div className="flex items-center gap-2 overflow-x-auto custom-scroll pb-1">
+                                {displayedClasses.map(c => {
+                                    const active = c.id === selectedClass;
+                                    const cRegCount = data.curriculum.filter(cur => cur.classId === c.id && cur.topic !== 'Chuyên đề').length;
+                                    const cSpecCount = data.curriculum.filter(cur => cur.classId === c.id && cur.topic === 'Chuyên đề').length;
+                                    return (
+                                        <button
+                                            key={c.id}
+                                            onClick={() => setSelectedClass(c.id)}
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all border ${active ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                        >
+                                            <i className="fa-solid fa-chalkboard-user"></i>
+                                            <span>Lớp {c.name}</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] ${active ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                                {cRegCount + cSpecCount} tiết
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Summary Stats for Selected Class */}
+                        {currClassObj && (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between shadow-xs">
+                                    <div>
+                                        <div className="text-xs text-slate-500 font-semibold">Lớp đang chọn</div>
+                                        <div className="text-lg font-black text-slate-800">{currClassObj.name}</div>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-base font-bold">
+                                        <i className="fa-solid fa-school"></i>
+                                    </div>
+                                </div>
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between shadow-xs">
+                                    <div>
+                                        <div className="text-xs text-slate-500 font-semibold">Chính khóa (SGK)</div>
+                                        <div className="text-lg font-black text-emerald-600">{regTotal} tiết</div>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base font-bold">
+                                        <i className="fa-solid fa-book-bookmark"></i>
+                                    </div>
+                                </div>
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 flex items-center justify-between shadow-xs">
+                                    <div>
+                                        <div className="text-xs text-slate-500 font-semibold">Chuyên đề học tập</div>
+                                        <div className="text-lg font-black text-purple-600">{specTotal} tiết</div>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-base font-bold">
+                                        <i className="fa-solid fa-shapes"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Filters & Curriculum Table */}
+                        <Card>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={filterTopic}
+                                        onChange={(e) => setFilterTopic(e.target.value)}
+                                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+                                    >
+                                        <option value="all">Tất cả loại bài ({regTotal + specTotal})</option>
+                                        <option value="regular">Chính khóa SGK ({regTotal})</option>
+                                        <option value="specialized">Chuyên đề ({specTotal})</option>
+                                    </select>
+
+                                    <select
+                                        value={filterWeek}
+                                        onChange={(e) => setFilterWeek(e.target.value)}
+                                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+                                    >
+                                        <option value="all">Tất cả tuần (1-35)</option>
+                                        {Array.from({ length: 35 }, (_, i) => i + 1).map(w => (
+                                            <option key={w} value={w}>Tuần {w}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="text-xs font-bold text-slate-500">
+                                    Hiển thị {classCurriculum.length} bài học
+                                </div>
+                            </div>
+
+                            {/* Table */}
+                            <div className="overflow-x-auto custom-scroll mt-4">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 text-slate-500 bg-slate-50/50">
+                                            <th className="py-3 px-3 font-extrabold w-16 text-center">Tuần</th>
+                                            <th className="py-3 px-3 font-extrabold w-16 text-center">Tiết</th>
+                                            <th className="py-3 px-3 font-extrabold w-28">Loại bài</th>
+                                            <th className="py-3 px-4 font-extrabold">Tên bài học / Kế hoạch dạy</th>
+                                            <th className="py-3 px-4 font-extrabold w-32 text-center">Ngày dự kiến</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {classCurriculum.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="py-12 text-center text-slate-400">
+                                                    <i className="fa-solid fa-folder-open text-3xl mb-2"></i>
+                                                    <div>Chưa có phân phối chương trình cho lớp này.</div>
+                                                    <div className="text-xs text-indigo-600 mt-1 cursor-pointer font-bold" onClick={() => setIsEditing(true)}>
+                                                        Bấm vào đây để nạp nhanh hoặc dán dữ liệu Excel
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            classCurriculum.map((item, idx) => {
+                                                const isSpec = item.topic === 'Chuyên đề';
+                                                return (
+                                                    <tr key={item.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                                                        <td className="py-2.5 px-3 text-center font-bold text-slate-700">T{item.week}</td>
+                                                        <td className="py-2.5 px-3 text-center font-extrabold text-indigo-600">
+                                                            {item.period}
+                                                        </td>
+                                                        <td className="py-2.5 px-3">
+                                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${isSpec ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                                                                {isSpec ? 'Chuyên đề' : 'Chính khóa'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-2.5 px-4 font-semibold text-slate-800">
+                                                            {item.lessonName}
+                                                        </td>
+                                                        <td className="py-2.5 px-4 text-center font-mono text-slate-500 text-[11px]">
+                                                            {item.expectedDate ? formatDate(item.expectedDate) : '—'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    </div>
+                );
+            };
+
+            // VIEW: QUẢN LÝ LỚP & HỌC SINH
+            // ============================================================
+            const StudentsView = () => {
+                const [selectedClass, setSelectedClass] = useState(data.classes[0]?.id || '');
+                const [newStudentName, setNewStudentName] = useState('');
+                const [newClassName, setNewClassName] = useState('');
+                const [bulkStudents, setBulkStudents] = useState('');
+                const [isAddingClass, setIsAddingClass] = useState(false);
+
+                const currentClassStudents = data.students.filter(s => s.classId === selectedClass);
+
+                const handleAddStudent = (e) => {
+                    e.preventDefault();
+                    if (!newStudentName.trim() || !selectedClass) return;
+                    const newS = { id: generateId(), classId: selectedClass, name: newStudentName.trim(), note: '' };
+                    updateData('students', [...data.students, newS]);
+                    setNewStudentName('');
+                    showToast('Đã thêm học sinh!');
+                };
+
+                const handleBulkAddStudents = (e) => {
+                    e.preventDefault();
+                    if (!bulkStudents.trim() || !selectedClass) return;
+                    const names = bulkStudents.split('\n').map(n => n.trim()).filter(n => n !== '');
+                    const newStudents = names.map(name => ({ id: generateId(), classId: selectedClass, name, note: '' }));
+                    updateData('students', [...data.students, ...newStudents]);
+                    setBulkStudents('');
+                    showToast(`Đã thêm ${newStudents.length} học sinh!`);
+                };
+
+                const handleAddClass = (e) => {
+                    e.preventDefault();
+                    if (!newClassName.trim()) return;
+                    const newC = { id: generateId(), name: newClassName.trim(), note: '' };
+                    updateData('classes', [...data.classes, newC]);
+                    setNewClassName('');
+                    setSelectedClass(newC.id);
+                    setIsAddingClass(false);
+                    showToast(`Đã thêm lớp ${newC.name}!`);
+                };
+
+                const handleDeleteStudent = (id) => {
+                    updateData('students', data.students.filter(s => s.id !== id));
+                    showToast('Đã xóa học sinh');
+                };
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                    <i className="fa-solid fa-user-group text-indigo-600"></i>
+                                    Quản Lý Hồ Sơ Lớp & Học Sinh
+                                </h2>
+                                <p className="text-sm text-slate-500 mt-1">Danh sách học sinh phục vụ điểm danh, chấm điểm và theo dõi sự tiến bộ</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button onClick={() => setIsAddingClass(true)} icon="fa-solid fa-plus">Thêm Lớp Mới</Button>
+                            </div>
+                        </div>
+
+                        {/* Add Class Modal */}
+                        <Modal isOpen={isAddingClass} onClose={() => setIsAddingClass(false)} title="Thêm Lớp Học Mới">
+                            <form onSubmit={handleAddClass} className="space-y-4">
+                                <Input label="Tên lớp (VD: 10A1, 10A2)" value={newClassName} onChange={e => setNewClassName(e.target.value)} placeholder="Nhập tên lớp..." autoFocus />
+                                <div className="flex gap-2">
+                                    <Button type="submit" className="flex-1">Tạo Lớp</Button>
+                                    <Button variant="secondary" onClick={() => setIsAddingClass(false)}>Hủy</Button>
+                                </div>
+                            </form>
+                        </Modal>
+
+                        {/* Class Selector & Quick Add */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <Card title="Chọn Lớp & Thêm Nhanh" icon="fa-solid fa-chalkboard-user">
+                                <div className="space-y-4">
+                                    <Select label="Lớp đang chọn" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
+                                        {data.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </Select>
+
+                                    <form onSubmit={handleAddStudent} className="space-y-3 pt-3 border-t border-slate-100">
+                                        <Input label="Thêm 1 học sinh" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Nhập họ và tên..." />
+                                        <Button type="submit" icon="fa-solid fa-user-plus" className="w-full">Thêm Học Sinh</Button>
+                                    </form>
+
+                                    <form onSubmit={handleBulkAddStudents} className="space-y-3 pt-3 border-t border-slate-100">
+                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Dán danh sách nhiều HS</label>
+                                        <textarea
+                                            value={bulkStudents}
+                                            onChange={e => setBulkStudents(e.target.value)}
+                                            rows={4}
+                                            placeholder="Mỗi dòng 1 tên học sinh..."
+                                            className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        ></textarea>
+                                        <Button type="submit" variant="secondary" icon="fa-solid fa-list-ol" className="w-full">Dán Danh Sách</Button>
+                                    </form>
+                                </div>
+                            </Card>
+
+                            {/* Student List */}
+                            <div className="md:col-span-2">
+                                <Card title={`Danh Sách Học Sinh Lớp ${data.classes.find(c => c.id === selectedClass)?.name || ''} (${currentClassStudents.length} HS)`} icon="fa-solid fa-users">
+                                    {currentClassStudents.length === 0 ? (
+                                        <EmptyState message="Lớp này chưa có học sinh nào. Hãy thêm học sinh ở cột bên trái!" icon="fa-user-plus" />
+                                    ) : (
+                                        <div className="divide-y divide-slate-100">
+                                            {currentClassStudents.map((student, idx) => (
+                                                <div key={student.id} className="py-2.5 flex justify-between items-center group hover:bg-slate-50/80 px-2 rounded-xl transition-colors">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center">{idx + 1}</span>
+                                                        <span className="font-bold text-slate-800 text-sm">{student.name}</span>
+                                                    </div>
+                                                    <button onClick={() => handleDeleteStudent(student.id)} className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <i className="fa-solid fa-trash-can text-sm"></i>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </Card>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            // ============================================================
+            // VIEW: ĐIỂM DANH (ATTENDANCE)
+            // ============================================================
+            const AttendanceView = () => {
+                const [selectedClass, setSelectedClass] = useState(data.classes[0]?.id || '');
+                const [selectedDate, setSelectedDate] = useState(getToday());
+
+                const students = data.students.filter(s => s.classId === selectedClass);
+
+                const getStatus = (studentId) => {
+                    const record = data.attendance.find(a => a.studentId === studentId && a.date === selectedDate);
+                    return record ? record.status : 'present';
+                };
+
+                const handleSetStatus = (studentId, status) => {
+                    const filtered = data.attendance.filter(a => !(a.studentId === studentId && a.date === selectedDate));
+                    updateData('attendance', [...filtered, { id: generateId(), studentId, classId: selectedClass, date: selectedDate, status }]);
+                };
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                    <i className="fa-solid fa-clipboard-user text-indigo-600"></i>
+                                    Sổ Điểm Danh Lớp Học
+                                </h2>
+                                <p className="text-sm text-slate-500 mt-1">Theo dõi chuyên cần, vắng phép / không phép</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <Select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="w-40">
+                                    {data.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </Select>
+                                <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-44" />
+                            </div>
+                        </div>
+
+                        <Card title={`Điểm Danh Ngày ${formatDate(selectedDate)}`} icon="fa-solid fa-user-check">
+                            {students.length === 0 ? (
+                                <EmptyState message="Lớp này chưa có học sinh để điểm danh." icon="fa-user-plus" />
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {students.map((student, idx) => {
+                                        const currentStatus = getStatus(student.id);
+                                        return (
+                                            <div key={student.id} className="py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center">{idx + 1}</span>
+                                                    <span className="font-bold text-slate-800">{student.name}</span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => handleSetStatus(student.id, 'present')} className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${currentStatus === 'present' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'}`}>Có mặt</button>
+                                                    <button onClick={() => handleSetStatus(student.id, 'excused')} className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${currentStatus === 'excused' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200'}`}>Có phép</button>
+                                                    <button onClick={() => handleSetStatus(student.id, 'unexcused')} className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${currentStatus === 'unexcused' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-200'}`}>Không phép</button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+                );
+            };
+
+            // ============================================================
+            // VIEW: ĐIỂM THƯỞNG / TRỪ (BONUS POINTS)
+            // ============================================================
+            const BonusPointsView = () => {
+                const [selectedClass, setSelectedClass] = useState(data.classes[0]?.id || '');
+                const students = data.students.filter(s => s.classId === selectedClass);
+
+                const getStudentScore = (studentId) => {
+                    return data.bonusPoints.filter(b => b.studentId === studentId).reduce((acc, curr) => acc + (curr.points || 0), 0);
+                };
+
+                const handleAddPoint = (studentId, delta) => {
+                    const record = { id: generateId(), studentId, classId: selectedClass, points: delta, date: getToday(), note: delta > 0 ? 'Phát biểu tốt' : 'Vi phạm' };
+                    updateData('bonusPoints', [...data.bonusPoints, record]);
+                    showToast(delta > 0 ? '+1 điểm thưởng!' : '-1 điểm!');
+                };
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                    <i className="fa-solid fa-star text-amber-500"></i>
+                                    Sổ Thi Đua & Điểm Cộng Trừ
+                                </h2>
+                                <p className="text-sm text-slate-500 mt-1">Ghi nhận phát biểu, đóng góp xây dựng bài</p>
+                            </div>
+                            <Select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="w-40">
+                                {data.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </Select>
+                        </div>
+
+                        <Card title="Bảng Tổng Hợp Điểm Thi Đua" icon="fa-solid fa-trophy">
+                            {students.length === 0 ? (
+                                <EmptyState message="Lớp này chưa có học sinh." icon="fa-users" />
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {students.map((student, idx) => {
+                                        const score = getStudentScore(student.id);
+                                        return (
+                                            <div key={student.id} className="py-3 flex justify-between items-center">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center">{idx + 1}</span>
+                                                    <span className="font-bold text-slate-800">{student.name}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`font-black text-sm px-3 py-1 rounded-xl border ${score > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : score < 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                                        {score > 0 ? `+${score}` : score} điểm
+                                                    </span>
+                                                    <button onClick={() => handleAddPoint(student.id, 1)} className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 font-bold text-sm transition-all">+</button>
+                                                    <button onClick={() => handleAddPoint(student.id, -1)} className="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-600 hover:text-white border border-rose-200 font-bold text-sm transition-all">-</button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+                );
+            };
+
+            // ============================================================
+            // VIEW: NHIỆM VỤ & CÔNG VIỆC (TASKS)
+            // ============================================================
+            const TasksView = () => {
+                const [newTaskTitle, setNewTaskTitle] = useState('');
+                const [dueDate, setDueDate] = useState('');
+
+                const handleAddTask = (e) => {
+                    e.preventDefault();
+                    if (!newTaskTitle.trim()) return;
+                    const task = { id: generateId(), title: newTaskTitle.trim(), dueDate, completed: false };
+                    updateData('tasks', [...data.tasks, task]);
+                    setNewTaskTitle('');
+                    showToast('Đã thêm nhiệm vụ!');
+                };
+
+                const handleToggleTask = (id) => {
+                    updateData('tasks', data.tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+                };
+
+                const handleDeleteTask = (id) => {
+                    updateData('tasks', data.tasks.filter(t => t.id !== id));
+                    showToast('Đã xóa nhiệm vụ');
+                };
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                <i className="fa-solid fa-list-check text-indigo-600"></i>
+                                Quản Lý Nhiệm Vụ & Kế Hoạch Cá Nhân
+                            </h2>
+                            <p className="text-sm text-slate-500 mt-1">Soạn giáo án, nộp đề kiểm tra, họp tổ chuyên môn...</p>
+                        </div>
+
+                        <Card title="Thêm Nhiệm Vụ Mới" icon="fa-solid fa-plus-circle">
+                            <form onSubmit={handleAddTask} className="flex flex-col sm:flex-row gap-3 items-end">
+                                <Input label="Tên công việc / nhiệm vụ" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="VD: Nộp đề thi giữa kỳ 1..." />
+                                <Input label="Hạn chót" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full sm:w-48" />
+                                <Button type="submit" icon="fa-solid fa-plus" className="w-full sm:w-auto">Thêm</Button>
+                            </form>
+                        </Card>
+
+                        <Card title={`Danh Sách Nhiệm Vụ (${data.tasks.filter(t => !t.completed).length} chưa hoàn thành)`} icon="fa-solid fa-tasks">
+                            {data.tasks.length === 0 ? (
+                                <EmptyState message="Chưa có nhiệm vụ nào. Thêm nhiệm vụ để không bị quên việc!" icon="fa-circle-check" />
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {data.tasks.map(task => (
+                                        <div key={task.id} className="py-3 flex justify-between items-center">
+                                            <div className="flex items-center gap-3">
+                                                <input type="checkbox" checked={task.completed} onChange={() => handleToggleTask(task.id)} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer" />
+                                                <div>
+                                                    <span className={`font-bold text-sm ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{task.title}</span>
+                                                    {task.dueDate && <span className="block text-xs text-slate-400">Hạn: {formatDate(task.dueDate)}</span>}
+                                                </div>
+                                            </div>
+                                            <button onClick={() => handleDeleteTask(task.id)} className="text-slate-300 hover:text-rose-600 p-2"><i className="fa-solid fa-trash-can text-sm"></i></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+                );
+            };
+
+            // ============================================================
+            // VIEW: CÀI ĐẶT HỆ THỐNG & SAO LƯU (SETTINGS)
+            // ============================================================
+            const SettingsView = () => {
+                const [teacherForm, setTeacherForm] = useState(data.teacher);
+
+                const handleSaveTeacher = (e) => {
+                    e.preventDefault();
+                    updateData('teacher', teacherForm);
+                    if (teacherForm.schoolYearStart && data.curriculum.length > 0 && data.timetable.length > 0) {
+                        const synced = recomputeAllCurriculumDates(data.curriculum, data.timetable, teacherForm.schoolYearStart);
+                        updateData('curriculum', synced);
+                    }
+                    showToast('Đã lưu thông tin giáo viên & cập nhật ngày dự kiến! ✅');
+                };
+
+                const handleExportJSON = () => {
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Du_Lieu_Bo_Mon_${data.teacher.schoolYear}_${getToday()}.json`;
+                    a.click();
+                    showToast('Đã tải về tệp sao lưu JSON!');
+                };
+
+                const handleImportJSON = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        try {
+                            const imported = JSON.parse(ev.target.result);
+                            setData({ ...buildInitialData(), ...imported });
+                            showToast('Khôi phục dữ liệu thành công! ✅');
+                        } catch (err) {
+                            showToast('Tệp JSON không hợp lệ!', 'error');
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+
+                const handleResetAll = () => {
+                    confirmAction('CẢNH BÁO: Bạn có chắc chắn muốn nạp lại toàn bộ dữ liệu mẫu chuẩn (105 tiết CK + 35 CĐ)?', () => {
+                        localStorage.removeItem(STORAGE_KEY);
+                        setData(buildInitialData());
+                        showToast('Đã khôi phục dữ liệu chuẩn! ✅');
+                    });
+                };
+
+                return (
+                    <div className="space-y-6 pb-24 md:pb-8 view-enter">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                <i className="fa-solid fa-gear text-indigo-600"></i>
+                                Cài Đặt Hệ Thống & Sao Lưu
+                            </h2>
+                            <p className="text-sm text-slate-500 mt-1">Cấu hình năm học, thông tin giáo viên và sao lưu an toàn</p>
+                        </div>
+
+                        <Card title="Thông Tin Giáo Viên & Năm Học" icon="fa-solid fa-user-tie">
+                            <form onSubmit={handleSaveTeacher} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Input label="Họ và tên giáo viên" value={teacherForm.name} onChange={e => setTeacherForm({ ...teacherForm, name: e.target.value })} />
+                                <Input label="Môn giảng dạy" value={teacherForm.subject} onChange={e => setTeacherForm({ ...teacherForm, subject: e.target.value })} />
+                                <Input label="Năm học" value={teacherForm.schoolYear} onChange={e => setTeacherForm({ ...teacherForm, schoolYear: e.target.value })} />
+                                <Input label="Ngày Bắt Đầu Năm Học (Thứ 2 Tuần 1)" type="date" value={teacherForm.schoolYearStart} onChange={e => setTeacherForm({ ...teacherForm, schoolYearStart: e.target.value })} hint="Rất quan trọng: để tự động tính ngày dự kiến cho từng tiết" />
+                                <div className="sm:col-span-2">
+                                    <Button type="submit" icon="fa-solid fa-floppy-disk">Lưu Thông Tin</Button>
+                                </div>
+                            </form>
+                        </Card>
+
+                        <Card title="Sao Lưu & Khôi Phục Dữ Liệu" icon="fa-solid fa-cloud-arrow-down">
+                            <div className="flex flex-wrap gap-4 items-center">
+                                <Button onClick={handleExportJSON} icon="fa-solid fa-download" variant="secondary">Xuất File Sao Lưu (.JSON)</Button>
+                                <label className="inline-flex items-center justify-center font-bold text-sm px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 cursor-pointer shadow-sm">
+                                    <i className="fa-solid fa-upload mr-2"></i> Nhập File Sao Lưu (.JSON)
+                                    <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
+                                </label>
+                                <Button onClick={handleResetAll} icon="fa-solid fa-wand-magic-sparkles" variant="amber">Khôi Phục Dữ Liệu Chuẩn Mẫu</Button>
+                            </div>
+                        </Card>
+                    </div>
+                );
+            };
+
+            // ============================================================
+            // 5. RENDER APP SHELL (SIDEBAR BÊN TRÁI)
+            // ============================================================
+            const activeNavItem = navItems.find(item => item.id === currentView) || navItems[0];
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+                    {/* Mobile Backdrop Overlay */}
+                    {sidebarOpen && (
+                        <div 
+                            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 md:hidden transition-opacity"
+                            onClick={() => setSidebarOpen(false)}
+                        ></div>
+                    )}
+
+                    {/* SIDEBAR BÊN TRÁI (Desktop cố định + Mobile Drawer trượt từ trái) */}
+                    <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out no-print ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+                        {/* Sidebar Header / Logo */}
+                        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 flex-shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-700 text-white flex items-center justify-center font-black text-lg shadow-md shadow-indigo-200">
+                                    <i className="fa-solid fa-graduation-cap"></i>
+                                </div>
+                                <div>
+                                    <span className="font-black text-slate-800 text-base tracking-tight">Sổ Quản Lý <span className="text-indigo-600">PRO</span></span>
+                                    <div className="text-[11px] font-bold text-slate-400">NH {data.teacher.schoolYear}</div>
+                                </div>
+                            </div>
+                            <button 
+                                className="md:hidden w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center"
+                                onClick={() => setSidebarOpen(false)}
+                            >
+                                <i className="fa-solid fa-xmark text-lg"></i>
+                            </button>
+                        </div>
+
+                        {/* Navigation Items (Vertical List) */}
+                        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scroll">
+                            {navItems.map(item => {
+                                const active = currentView === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => {
+                                            setCurrentView(item.id);
+                                            setSidebarOpen(false);
+                                        }}
+                                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left ${active ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'} ${item.highlight && !active ? 'text-indigo-600 bg-indigo-50/70 font-extrabold' : ''}`}
+                                    >
+                                        <i className={`${item.icon} w-5 text-center text-sm ${active ? 'text-white' : item.highlight ? 'text-indigo-600' : 'text-slate-400'}`}></i>
+                                        <span className="flex-1 truncate">{item.label}</span>
+                                        {item.highlight && !active && (
+                                            <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </nav>
+
+                        {/* Sidebar Footer / Teacher Profile */}
+                        <div className="p-3 border-t border-slate-100 bg-slate-50/70 flex-shrink-0">
+                            <div className="flex items-center gap-3 p-2 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+                                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
+                                    {data.teacher.name ? data.teacher.name.charAt(0) : 'T'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-xs text-slate-800 truncate">{data.teacher.name || 'Giáo viên'}</div>
+                                    <div className="text-[11px] text-indigo-600 font-semibold truncate">{data.teacher.subject} · Tuần {currentWeek}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* MAIN CONTENT AREA */}
+                    <div className="flex-1 flex flex-col min-w-0 md:pl-64 min-h-screen">
+                        {/* Top Bar for Desktop & Mobile */}
+                        <header className="bg-white border-b border-slate-200 sticky top-0 z-30 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 no-print">
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setSidebarOpen(true)}
+                                    className="md:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 border border-slate-200 flex items-center justify-center"
+                                >
+                                    <i className="fa-solid fa-bars text-lg"></i>
+                                </button>
+                                <div>
+                                    <h1 className="text-base sm:text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                                        <i className={`${activeNavItem.icon} text-indigo-600 text-base`}></i>
+                                        {activeNavItem.label}
+                                    </h1>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-700">
+                                    <i className="fa-solid fa-calendar-check"></i>
+                                    Tuần {currentWeek}
+                                </div>
+                                <div className="text-right hidden lg:block">
+                                    <div className="font-bold text-xs text-slate-800">{data.teacher.name}</div>
+                                    <div className="text-[11px] text-slate-500">{data.teacher.school}</div>
+                                </div>
+                            </div>
+                        </header>
+
+                        {/* View Content */}
+                        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                            {currentView === 'dashboard' && <DashboardView />}
+                            {currentView === 'journal' && <JournalView />}
+                            {currentView === 'timetable' && <TimetableView />}
+                            {currentView === 'curriculum' && <CurriculumView />}
+                            {currentView === 'students' && <StudentsView />}
+                            {currentView === 'attendance' && <AttendanceView />}
+                            {currentView === 'bonus' && <BonusPointsView />}
+                            {currentView === 'tasks' && <TasksView />}
+                            {currentView === 'settings' && <SettingsView />}
+                        </main>
+                    </div>
+
+                    {/* Toast Notification */}
+                    {toast && (
+                        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+                            <div className={`px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-3 text-sm font-bold ${toast.type === 'error' ? 'bg-rose-600 text-white border-rose-500' : 'bg-slate-900 text-white border-slate-800'}`}>
+                                <i className={`fa-solid ${toast.type === 'error' ? 'fa-triangle-exclamation' : 'fa-circle-check text-emerald-400'}`}></i>
+                                <span>{toast.message}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Confirmation Dialog */}
+                    {confirmDialog && (
+                        <Modal isOpen={true} onClose={() => setConfirmDialog(null)} title="Xác nhận thao tác">
+                            <div className="space-y-4">
+                                <p className="text-sm font-medium text-slate-700">{confirmDialog.message}</p>
+                                <div className="flex gap-3 justify-end">
+                                    <Button variant="secondary" onClick={() => setConfirmDialog(null)}>Hủy</Button>
+                                    <Button variant="danger" onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}>Đồng ý</Button>
+                                </div>
+                            </div>
+                        </Modal>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+</body>
+</html>

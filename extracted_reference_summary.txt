@@ -1,0 +1,519 @@
+=== EXTRACTED 25 FUNCTIONS ===
+const generateId = () => '_' + Math.random().toString(36).substr(2, 9);
+
+        const formatDate = (dateString) => {
+            if (!dateString) return '';
+            const [y, m, d] = dateString.split('-');
+            return `${d}/${m}/${y}`;
+        };
+
+--------------------
+
+const getWeekDatesForWeekNum = (weekNum, schoolYearStart) => {
+            const dates = [];
+            for (let day = 2; day <= 8; day++) {
+                const dateStr = getDateForWeekDay(weekNum, day, schoolYearStart);
+                dates.push({
+                    dayOfWeek: day,
+                    dayName: DAY_NAMES[day],
+                    dateString: dateStr,
+                    displayDate: dateStr ? formatDate(dateStr) : ''
+                });
+            }
+            return dates;
+        };
+
+--------------------
+
+const recomputeAllCurriculumDates = (curriculum, timetable, schoolYearStart) => {
+            if (!curriculum || curriculum.length === 0) return [];
+            if (!timetable || timetable.length === 0 || !schoolYearStart) {
+                return curriculum.map(c => ({ ...c }));
+            }
+
+            const classIds = [...new Set(curriculum.map(c => c.classId))];
+            const updated = [];
+
+            classIds.forEach(cId => {
+                const regTkb = timetable
+                    .filter(t => t.classId === cId && t.subjectType !== 'specialized')
+                    .sort((a, b) => a.dayOfWeek !== b.dayOfWeek ? a.dayOfWeek - b.dayOfWeek : a.period - b.period);
+
+                const specTkb = timetable
+                    .filter(t => t.classId === cId && t.subjectType === 'specialized')
+                    .sort((a, b) => a.dayOfWeek !== b.dayOfWeek ? a.dayOfWeek - b.dayOfWeek : a.period - b.period);
+
+                const classLessons = curriculum.filter(c => c.classId === cId);
+                const weeks = [...new Set(classLessons.map(c => parseInt(c.week)))].sort((a, b) => a - b);
+
+                weeks.forEach(w => {
+                    // Regular lessons in week w
+                    const regLessons = classLessons
+                        .filter(c => parseInt(c.week) === w && c.topic !== 'Chuyên đề')
+                        .sort((a, b) => parseInt(a.period) - parseInt(b.period));
+
+                    regLessons.forEach((lesson, idx) => {
+                        let expDate = lesson.expectedDate || '';
+                        if (regTkb.length > 0) {
+                            const tkbSlot = regTkb[idx % regTkb.length];
+                            expDate = getDateForWeekDay(w, tkbSlot.dayOfWeek, schoolYearStart);
+                        }
+                        updated.push({ ...lesson, expectedDate: expDate });
+                    });
+
+                    // Specialized lessons in week w
+                    const specLessons = classLessons
+                        .filter(c => parseInt(c.week) === w && c.topic === 'Chuyên đề')
+                        .sort((a, b) => parseInt(a.period) - parseInt(b.period));
+
+                    specLessons.forEach((lesson, idx) => {
+                        let expDate = lesson.expectedDate || '';
+                        if (specTkb.length > 0) {
+                            const tkbSlot = specTkb[idx % specTkb.length];
+                            expDate = getDateForWeekDay(w, tkbSlot.dayOfWeek, schoolYearStart);
+                        }
+                        updated.push({ ...lesson, expectedDate: expDate });
+                    });
+                });
+            });
+
+            const processedIds = new Set(updated.map(u => u.id));
+            curriculum.forEach(c => {
+                if (!processedIds.has(c.id)) {
+                    updated.push({ ...c });
+                }
+            });
+
+            return updated;
+        };
+
+--------------------
+
+const handleToggleTaught = (lesson, tkb, dayInfo) => {
+                    if (!lesson) return;
+                    const existingProg = data.progress.find(p =>
+                        p.curriculumId === lesson.id ||
+                        (p.classId === tkb.classId && p.actualDate === dayInfo.dateString && p.period === tkb.period)
+                    );
+
+                    if (existingProg) {
+                        updateData('progress', data.progress.filter(p => p.id !== existingProg.id));
+                        showToast('Đã hủy báo giảng!');
+                    } else {
+                        const newProg = {
+                            id: generateId(),
+                            curriculumId: lesson.id,
+                            classId: tkb.classId,
+                            actualDate: dayInfo.dateString || getToday(),
+                            period: tkb.period,
+                            tkbId: tkb.id,
+                            status: 'Đã dạy',
+                            note: ''
+                        };
+
+--------------------
+
+const handleMarkWeekTaught = () => {
+                    const newProgressItems = [];
+                    weekDates.forEach(dayInfo => {
+                        const dayTkb = data.timetable.filter(t => t.dayOfWeek === dayInfo.dayOfWeek && (!filterClass || t.classId === filterClass));
+                        dayTkb.forEach(tkb => {
+                            const { lesson, isTaught } = getLessonForTkbSlot(tkb, dayInfo, selectedWeek, data.curriculum, data.progress, data.timetable);
+                            if (lesson && !isTaught) {
+                                newProgressItems.push({
+                                    id: generateId(),
+                                    curriculumId: lesson.id,
+                                    classId: tkb.classId,
+                                    actualDate: dayInfo.dateString || getToday(),
+                                    period: tkb.period,
+                                    tkbId: tkb.id,
+                                    status: 'Đã dạy',
+                                    note: ''
+                                });
+                            }
+                        });
+                    });
+
+                    if (newProgressItems.length === 0) return showToast('Tất cả các tiết trong tuần đã được báo giảng!');
+                    updateData('progress', [...data.progress, ...newProgressItems]);
+                    showToast(`✅ Đã báo giảng nhanh ${newProgressItems.length} tiết trong Tuần ${selectedWeek}!`);
+                };
+
+--------------------
+
+const handleAddTkb = (e) => {
+                    e.preventDefault();
+                    if (!form.classId) return showToast('Vui lòng chọn lớp học!', 'error');
+
+                    const newEntry = {
+                        id: generateId(),
+                        dayOfWeek: parseInt(form.dayOfWeek),
+                        period: parseInt(form.period),
+                        classId: form.classId,
+                        subjectType: form.subjectType
+                    };
+
+--------------------
+
+const handleDeleteTkb = (id) => {
+                    confirmAction('Xóa tiết dạy này khỏi TKB?', () => {
+                        const updatedTkb = data.timetable.filter(t => t.id !== id);
+                        updateData('timetable', updatedTkb);
+                        if (data.teacher.schoolYearStart && data.curriculum.length > 0) {
+                            const syncedCurriculum = recomputeAllCurriculumDates(data.curriculum, updatedTkb, data.teacher.schoolYearStart);
+                            updateData('curriculum', syncedCurriculum);
+                        }
+                        showToast('Đã xóa tiết khỏi TKB!');
+                    });
+                };
+
+--------------------
+
+const handleUpdateSchoolYearStart = (newDate) => {
+                    const updatedTeacher = { ...data.teacher, schoolYearStart: newDate };
+                    updateData('teacher', updatedTeacher);
+                    if (newDate && data.curriculum.length > 0 && data.timetable.length > 0) {
+                        const syncedCurriculum = recomputeAllCurriculumDates(data.curriculum, data.timetable, newDate);
+                        updateData('curriculum', syncedCurriculum);
+                    }
+                    showToast('Đã lưu Ngày bắt đầu năm học & cập nhật toàn bộ ngày dự kiến! ✅');
+                };
+
+--------------------
+
+const handleLoadSampleTkb = () => {
+                    if (data.classes.length === 0) return showToast('Chưa có lớp học nào!', 'error');
+                    const c1 = data.classes[0]?.id;
+                    const c2 = data.classes[1]?.id || c1;
+
+                    const sampleTkb = [
+                        { id: generateId(), dayOfWeek: 2, period: 1, classId: c1, subjectType: 'regular' },
+                        { id: generateId(), dayOfWeek: 2, period: 2, classId: c1, subjectType: 'regular' },
+                        { id: generateId(), dayOfWeek: 4, period: 3, classId: c1, subjectType: 'regular' },
+                        { id: generateId(), dayOfWeek: 6, period: 4, classId: c1, subjectType: 'specialized' },
+                    ];
+
+                    if (c2 !== c1) {
+                        sampleTkb.push(
+                            { id: generateId(), dayOfWeek: 3, period: 1, classId: c2, subjectType: 'regular' },
+                            { id: generateId(), dayOfWeek: 3, period: 2, classId: c2, subjectType: 'regular' },
+                            { id: generateId(), dayOfWeek: 5, period: 3, classId: c2, subjectType: 'regular' },
+                            { id: generateId(), dayOfWeek: 7, period: 4, classId: c2, subjectType: 'specialized' }
+                        );
+                    }
+
+                    updateData('timetable', sampleTkb);
+                    if (data.teacher.schoolYearStart && data.curriculum.length > 0) {
+                        const synced = recomputeAllCurriculumDates(data.curriculum, sampleTkb, data.teacher.schoolYearStart);
+                        updateData('curriculum', synced);
+                    }
+                    showToast('Đã nạp Thời khóa biểu mẫu (3 tiết chính khóa + 1 tiết chuyên đề/tuần)! ✅');
+                };
+
+--------------------
+
+const handleQuickLoadTemplate = (gradeNum) => {
+                    const template = gradeNum === 11 ? K11_TEMPLATE_LESSONS : K10_TEMPLATE_LESSONS;
+                    const gradeStr = String(gradeNum);
+                    
+                    // Determine target classes
+                    let targetIds = data.classes.filter(c => getClassGrade(c.name) === gradeStr).map(c => c.id);
+                    if (targetIds.length === 0) {
+                        // If no class of this grade exists, offer to apply to currently selected class
+                        if (selectedClass) {
+                            targetIds = [selectedClass];
+                        } else {
+                            return showToast(`Chưa có lớp thuộc Khối ${gradeNum}. Vui lòng tạo lớp khối ${gradeNum} trước!`, 'error');
+                        }
+                    }
+
+                    const targetClassNames = data.classes.filter(c => targetIds.includes(c.id)).map(c => c.name).join(', ');
+
+                    confirmAction(
+                        `Bạn có chắc chắn muốn NẠP NHANH toàn bộ PPCT Toán ${gradeNum} (140 tiết: 105 chính khóa + 35 chuyên đề) cho lớp [${targetClassNames}]? Dữ liệu PPCT cũ của các lớp này sẽ được thay thế và tự động khớp lịch báo giảng.`,
+                        () => {
+                            const parsedLessons = [];
+                            targetIds.forEach(cId => {
+                                template.forEach(tmpl => {
+                                    parsedLessons.push({
+                                        id: generateId(),
+                                        classId: cId,
+                                        week: tmpl.week,
+                                        period: tmpl.period,
+                                        lessonName: tmpl.lessonName,
+                                        topic: tmpl.topic || '',
+                                        expectedDate: ''
+                                    });
+                                });
+                            });
+
+                            const remaining = data.curriculum.filter(c => !targetIds.includes(c.classId));
+                            const combined = [...remaining, ...parsedLessons];
+                            const synced = recomputeAllCurriculumDates(combined, data.timetable, data.teacher.schoolYearStart);
+                            updateData('curriculum', synced);
+                            showToast(`Đã nạp thành công 140 tiết PPCT Toán ${gradeNum} cho [${targetClassNames}]!`);
+                        }
+                    );
+                };
+
+--------------------
+
+const handleBulkPasteCurriculum = (e) => {
+                    e.preventDefault();
+                    const targetIds = getTargetClassIds(targetScope);
+                    if (targetIds.length === 0) {
+                        return showToast('Vui lòng chọn phạm vi lớp áp dụng (hoặc tạo lớp trước khi dán)!', 'error');
+                    }
+
+                    const lines = bulkData.split('\n').filter(l => l.trim() !== '');
+                    if (lines.length === 0) return showToast('Chưa có dữ liệu dán vào!', 'error');
+
+                    const targetClasses = data.classes.filter(c => targetIds.includes(c.id));
+                    const targetNames = targetClasses.map(c => c.name).join(', ');
+                    const parsedLessons = [];
+
+                    let currentWeek = 1;
+                    let lastMainLessonName = '';
+                    let lastSpecLessonName = '';
+
+                    lines.forEach(line => {
+                        const parts = line.replace(/\r/g, '').split('\t').map(p => p.trim());
+
+                        // Check if parts[0] is a week indicator
+                        if (parts[0]) {
+                            const weekMatch = parts[0].match(/^(?:tuần\s*)?(\d{1,2})$/i);
+                            if (weekMatch) {
+                                const w = parseInt(weekMatch[1]);
+                                if (w >= 1 && w <= 52) currentWeek = w;
+                            }
+                        }
+
+                        // Case A: 4 or 5 columns (Tuần, Tiết CT, Tên bài, Tiết CĐ, Tên chuyên đề)
+                        if (parts.length >= 3) {
+                            const regPeriodStr = parts[1] || '';
+                            const regLessonStr = parts[2] || '';
+                            const specPeriodStr = parts[3] || '';
+                            const specLessonStr = parts[4] || '';
+
+                            if (regLessonStr) lastMainLessonName = regLessonStr;
+                            if (specLessonStr) lastSpecLessonName = specLessonStr;
+
+                            const regPeriod = parseInt(regPeriodStr);
+                            const specPeriod = parseInt(specPeriodStr);
+
+                            // Regular lesson
+                            if (!isNaN(regPeriod) && regPeriod > 0) {
+                                targetIds.forEach(cId => {
+                                    parsedLessons.push({
+                                        id: generateId(),
+                                        classId: cId,
+                                        week: currentWeek,
+                                        period: regPeriod,
+                                        lessonName: regLessonStr || lastMainLessonName,
+                                        topic: '',
+                                        expectedDate: ''
+                                    });
+                                });
+                            }
+
+                            // Specialized lesson
+                            if (!isNaN(specPeriod) && specPeriod > 0) {
+                                targetIds.forEach(cId => {
+                                    parsedLessons.push({
+                                        id: generateId(),
+                                        classId: cId,
+                                        week: currentWeek,
+                                        period: specPeriod,
+                                        lessonName: specLessonStr || lastSpecLessonName,
+                                        topic: 'Chuyên đề',
+                                        expectedDate: ''
+                                    });
+                                });
+                            }
+                        }
+                        // Case B: 2 columns (Tiết, Tên bài)
+                        else if (parts.length === 2) {
+                            const pNum = parseInt(parts[0]);
+                            const lName = parts[1];
+                            if (!isNaN(pNum) && lName) {
+                                targetIds.forEach(cId => {
+                                    parsedLessons.push({
+                                        id: generateId(),
+                                        classId: cId,
+                                        week: currentWeek,
+                                        period: pNum,
+                                        lessonName: lName,
+                                        topic: '',
+                                        expectedDate: ''
+                                    });
+                                });
+                            }
+                        }
+                    });
+
+                    if (parsedLessons.length === 0) {
+                        return showToast('Không tìm thấy bài học hợp lệ. Vui lòng copy trực tiếp các hàng từ Excel!', 'error');
+                    }
+
+                    // Remove existing curriculum for target classes
+                    const remainingCurriculum = data.curriculum.filter(c => !targetIds.includes(c.classId));
+                    const combined = [...remainingCurriculum, ...parsedLessons];
+
+                    // Automatically sync with TKB and SchoolYearStart!
+                    const syncedCurriculum = recomputeAllCurriculumDates(combined, data.timetable, data.teacher.schoolYearStart);
+                    updateData('curriculum', syncedCurriculum);
+
+                    const regCount = parsedLessons.filter(l => l.topic !== 'Chuyên đề').length / targetIds.length;
+                    const specCount = parsedLessons.filter(l => l.topic === 'Chuyên đề').length / targetIds.length;
+
+                    showToast(`Đã dán thành công ${regCount + specCount} tiết (${regCount} chính khóa + ${specCount} chuyên đề) cho lớp [${targetNames}]!`);
+                    setBulkData('');
+                    setIsEditing(false);
+                };
+
+--------------------
+
+const handleQuickAddClass = (className) => {
+                    if (data.classes.some(c => c.name.toLowerCase() === className.toLowerCase())) {
+                        return showToast(`Lớp ${className} đã tồn tại!`, 'info');
+                    }
+                    const newClass = { id: generateId(), name: className, note: `Lớp ${className}` };
+                    updateData('classes', [...data.classes, newClass]);
+                    setSelectedClass(newClass.id);
+                    showToast(`Đã thêm lớp ${className}!`);
+                };
+
+--------------------
+
+const handleAddStudent = (e) => {
+                    e.preventDefault();
+                    if (!newStudentName.trim() || !selectedClass) return;
+                    const newS = { id: generateId(), classId: selectedClass, name: newStudentName.trim(), note: '' };
+                    updateData('students', [...data.students, newS]);
+                    setNewStudentName('');
+                    showToast('Đã thêm học sinh!');
+                };
+
+--------------------
+
+const handleBulkAddStudents = (e) => {
+                    e.preventDefault();
+                    if (!bulkStudents.trim() || !selectedClass) return;
+                    const names = bulkStudents.split('\n').map(n => n.trim()).filter(n => n !== '');
+                    const newStudents = names.map(name => ({ id: generateId(), classId: selectedClass, name, note: '' }));
+                    updateData('students', [...data.students, ...newStudents]);
+                    setBulkStudents('');
+                    showToast(`Đã thêm ${newStudents.length} học sinh!`);
+                };
+
+--------------------
+
+const handleAddClass = (e) => {
+                    e.preventDefault();
+                    if (!newClassName.trim()) return;
+                    const newC = { id: generateId(), name: newClassName.trim(), note: '' };
+                    updateData('classes', [...data.classes, newC]);
+                    setNewClassName('');
+                    setSelectedClass(newC.id);
+                    setIsAddingClass(false);
+                    showToast(`Đã thêm lớp ${newC.name}!`);
+                };
+
+--------------------
+
+const handleDeleteStudent = (id) => {
+                    updateData('students', data.students.filter(s => s.id !== id));
+                    showToast('Đã xóa học sinh');
+                };
+
+--------------------
+
+const handleSetStatus = (studentId, status) => {
+                    const filtered = data.attendance.filter(a => !(a.studentId === studentId && a.date === selectedDate));
+                    updateData('attendance', [...filtered, { id: generateId(), studentId, classId: selectedClass, date: selectedDate, status }]);
+                };
+
+--------------------
+
+const handleAddPoint = (studentId, delta) => {
+                    const record = { id: generateId(), studentId, classId: selectedClass, points: delta, date: getToday(), note: delta > 0 ? 'Phát biểu tốt' : 'Vi phạm' };
+                    updateData('bonusPoints', [...data.bonusPoints, record]);
+                    showToast(delta > 0 ? '+1 điểm thưởng!' : '-1 điểm!');
+                };
+
+--------------------
+
+const handleAddTask = (e) => {
+                    e.preventDefault();
+                    if (!newTaskTitle.trim()) return;
+                    const task = { id: generateId(), title: newTaskTitle.trim(), dueDate, completed: false };
+                    updateData('tasks', [...data.tasks, task]);
+                    setNewTaskTitle('');
+                    showToast('Đã thêm nhiệm vụ!');
+                };
+
+--------------------
+
+const handleToggleTask = (id) => {
+                    updateData('tasks', data.tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+                };
+
+--------------------
+
+const handleDeleteTask = (id) => {
+                    updateData('tasks', data.tasks.filter(t => t.id !== id));
+                    showToast('Đã xóa nhiệm vụ');
+                };
+
+--------------------
+
+const handleSaveTeacher = (e) => {
+                    e.preventDefault();
+                    updateData('teacher', teacherForm);
+                    if (teacherForm.schoolYearStart && data.curriculum.length > 0 && data.timetable.length > 0) {
+                        const synced = recomputeAllCurriculumDates(data.curriculum, data.timetable, teacherForm.schoolYearStart);
+                        updateData('curriculum', synced);
+                    }
+                    showToast('Đã lưu thông tin giáo viên & cập nhật ngày dự kiến! ✅');
+                };
+
+--------------------
+
+const handleExportJSON = () => {
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Du_Lieu_Bo_Mon_${data.teacher.schoolYear}_${getToday()}.json`;
+                    a.click();
+                    showToast('Đã tải về tệp sao lưu JSON!');
+                };
+
+--------------------
+
+const handleImportJSON = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        try {
+                            const imported = JSON.parse(ev.target.result);
+                            setData({ ...buildInitialData(), ...imported });
+                            showToast('Khôi phục dữ liệu thành công! ✅');
+                        } catch (err) {
+                            showToast('Tệp JSON không hợp lệ!', 'error');
+                        }
+                    };
+
+--------------------
+
+const handleResetAll = () => {
+                    confirmAction('CẢNH BÁO: Bạn có chắc chắn muốn nạp lại toàn bộ dữ liệu mẫu chuẩn (105 tiết CK + 35 CĐ)?', () => {
+                        localStorage.removeItem(STORAGE_KEY);
+                        setData(buildInitialData());
+                        showToast('Đã khôi phục dữ liệu chuẩn! ✅');
+                    });
+                };
+
+--------------------
+

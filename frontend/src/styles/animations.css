@@ -1,0 +1,406 @@
+/**
+ * animations.css - Smooth animations and transitions
+ * Collection of proven animation patterns for better UX
+ */
+
+@layer components {
+  /* Fade animations */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 300ms ease-out;
+  }
+
+  .animate-fade-out {
+    animation: fade-out 300ms ease-out;
+  }
+
+  /* Slide animations */
+  @keyframes slide-in-from-top {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-in-from-bottom {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-in-from-left {
+    from {
+      opacity: 0;
+      transform: translateX(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slide-in-from-right {
+    from {
+      opacity: 0;
+      transform: translateX(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slide-in-from-top {
+    animation: slide-in-from-top 300ms ease-out;
+  }
+
+  .animate-slide-in-from-bottom {
+    animation: slide-in-from-bottom 300ms ease-out;
+  }
+
+  .animate-slide-in-from-left {
+    animation: slide-in-from-left 300ms ease-out;
+  }
+
+  .animate-slide-in-from-right {
+    animation: slide-in-from-right 300ms ease-out;
+  }
+
+  /* Scale animations */
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-scale-in {
+    animation: scale-in 200ms ease-out;
+  }
+
+  /* Bounce animations */
+  @keyframes bounce-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .animate-bounce-in {
+    animation: bounce-in 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  /* Shimmer loading animation */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      #f0f0f0 25%,
+      #e0e0e0 50%,
+      #f0f0f0 75%
+    );
+    background-size: 1000px 100%;
+  }
+
+  /* Pulse animation for attention */
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 rgb(59, 130, 246, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgb(59, 130, 246, 0);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s infinite;
+  }
+
+  /* Spin animation */
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 3s linear infinite;
+  }
+
+  /* Loading dots */
+  @keyframes dot-bounce {
+    0%, 80%, 100% {
+      opacity: 0.3;
+      transform: translateY(0);
+    }
+    40% {
+      opacity: 1;
+      transform: translateY(-8px);
+    }
+  }
+
+  .dot-bounce-1 {
+    animation: dot-bounce 1.4s infinite;
+  }
+
+  .dot-bounce-2 {
+    animation: dot-bounce 1.4s infinite;
+    animation-delay: 0.2s;
+  }
+
+  .dot-bounce-3 {
+    animation: dot-bounce 1.4s infinite;
+    animation-delay: 0.4s;
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .transition-smooth-fast {
+    @apply transition-all duration-150 ease-out;
+  }
+
+  .transition-smooth-slow {
+    @apply transition-all duration-500 ease-out;
+  }
+
+  /* Reduce motion for accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Hover effects */
+  .hover-lift {
+    @apply transition-transform hover:scale-105 hover:-translate-y-1;
+  }
+
+  .hover-scale {
+    @apply transition-transform hover:scale-110;
+  }
+
+  .hover-brighten {
+    @apply transition-all hover:brightness-110;
+  }
+
+  /* Focus states for accessibility */
+  .focus-visible-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+  }
+
+  /* Responsive animations - disable on mobile for performance */
+  @media (max-width: 640px) {
+    .animate-md {
+      animation: none;
+    }
+  }
+
+  /* Skeleton loading animation */
+  .skeleton {
+    @apply bg-muted animate-pulse;
+  }
+
+  @keyframes skeleton-loading {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .skeleton-loading {
+    animation: skeleton-loading 2s infinite;
+  }
+
+  /* Flash animation for alerts */
+  @keyframes flash {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-flash {
+    animation: flash 1s infinite;
+  }
+
+  /* Page transition animations */
+  @keyframes page-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes page-slide-in {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-page-in {
+    animation: page-fade-in 300ms ease-out;
+  }
+
+  /* Toast/notification animations */
+  @keyframes toast-slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes toast-slide-out {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+  }
+
+  .animate-toast-in {
+    animation: toast-slide-in 300ms ease-out;
+  }
+
+  .animate-toast-out {
+    animation: toast-slide-out 300ms ease-in;
+  }
+
+  /* Modal backdrop blur effect */
+  .backdrop-blur-slight {
+    backdrop-filter: blur(2px);
+  }
+
+  .backdrop-blur-heavy {
+    backdrop-filter: blur(8px);
+  }
+
+  /* Gradient animations */
+  @keyframes gradient-shift {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+
+  /* Typewriter effect */
+  @keyframes typewriter {
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
+  }
+
+  .animate-typewriter {
+    animation: typewriter 0.5s steps(40, end);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+}
+
+/**
+ * Responsive animation classes
+ * Disable heavy animations on mobile
+ */
+@media (max-width: 768px) {
+  /* Reduce animation complexity on mobile */
+  .animate-fade-in,
+  .animate-slide-in-from-top,
+  .animate-slide-in-from-bottom,
+  .animate-slide-in-from-left,
+  .animate-slide-in-from-right {
+    animation-duration: 200ms !important;
+  }
+
+  /* Disable scale animations on mobile (performance) */
+  .animate-scale-in,
+  .animate-bounce-in {
+    animation: fade-in 200ms ease-out !important;
+  }
+}
