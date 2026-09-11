@@ -451,45 +451,68 @@ async def upload_ppct_image(
         raise HTTPException(status_code=400, detail="File ảnh rỗng hoặc không hợp lệ")
 
     prompt = f"""
-Bạn là chuyên gia số hóa chương trình giáo dục phổ thông (GDPT 2018) Việt Nam bậc THPT.
-Hãy nhìn vào ảnh chụp bảng Phân phối chương trình (PPCT) môn {subject} {grade} và trích xuất TOÀN BỘ các dòng bài dạy.
+Bạn là chuyên gia số hóa chương trình giáo dục phổ thông Việt Nam (Chuẩn GDPT 2018) bậc THPT.
+Nhiệm vụ tối quan trọng: Đọc kỹ ảnh chụp bảng Phân phối chương trình (PPCT) môn {subject} {grade} và trích xuất TOÀN BỘ VÀ CHÍNH XÁC 100% danh sách từng tiết bài dạy.
 
-ĐẶC BIỆT LƯU Ý VỀ CẤU TRÚC BẢNG SONG SONG (CHÍNH KHÓA VÀ CHUYÊN ĐỀ HỌC TẬP):
-1. Phần Chính khóa: Gồm Cột Tuần, Cột Tiết (1..105), Cột Tên bài học.
-2. Phần Chuyên đề học tập: Gồm Cột Tiết CĐ (1..35), Cột Tên chuyên đề học tập.
--> BẮT BUỘC TRÍCH XUẤT ĐẦY ĐỦ CẢ HAI PHẦN! TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT CÁC TIẾT CHUYÊN ĐỀ HỌC TẬP!
+================ CẤU TRÚC BẢNG ĐẶC TRƯNG CỦA PPCT TOÁN GDPT 2018 (BẢNG 5 CỘT) ================
+Bảng gồm 5 cột chính:
+- Cột 1: [Tuần] (ví dụ: '1 (7/9-12/9)', '2 (14/9-19/9)' -> Tuần lấy con số đầu: 1, 2, 3... 35).
+- Cột 2: [Tiết] (Đánh số từ 1 đến 105 cho phần Chính khóa).
+- Cột 3: [Chương/Bài] (Tên bài dạy Chính khóa).
+- Cột 4: [Tiết] (Đánh số từ 1 đến 35 cho phần Chuyên đề học tập).
+- Cột 5: [Chuyên đề học tập] (Tên bài Chuyên đề học tập).
 
-QUY TẮC CỰC KỲ QUAN TRỌNG - BỎ QUA CÁC DÒNG TIÊU ĐỀ KHÔNG PHẢI TIẾT HỌC:
-- Các dòng tiêu đề chương / tiêu đề chủ đề / tiêu đề phân nhóm mà CỘT TIẾT BỊ TRỐNG HOẶC KHÔNG CÓ SỐ TIẾT (ví dụ các dòng như:
-  "CHƯƠNG VI. HÀM SỐ, ĐỒ THỊ VÀ ỨNG DỤNG (13 tiết)",
-  "CHƯƠNG I. MỆNH ĐỀ VÀ TẬP HỢP (10 tiết)",
-  "CHUYÊN ĐỀ 1: HỆ PHƯƠNG TRÌNH BẬC NHẤT BA ẨN (10 tiết)")
-  -> ĐÂY CHỈ LÀ TIÊU ĐỀ PHÂN ĐOẠN, TUYỆT ĐỐI KHÔNG PHẢI TIẾT HỌC -> BẮT BUỘC PHẢI BỎ QUA HOÀN TOÀN, KHÔNG ĐƯỢC TẠO DÒNG BÀI DẠY CHO CÁC DÒNG NÀY!
-- CHỈ TRÍCH XUẤT các dòng bài học thực sự có SỐ TIẾT CỤ THỂ ở Cột Tiết (ví dụ: Tiết 35, Tiết 1-2, Tiết 1 CĐ...).
+================ QUY TẮC BẮT BUỘC ĐỂ TRÍCH XUẤT CHÍNH XÁC 100% ================
 
-Quy cách trả về cho mỗi tiết học:
-- "week": Tuần học (số nguyên từ 1 đến 35)
-- "lesson_number": 
-   + Tiết chính khóa: đánh số 1, 2, 3... 105.
-   + Tiết chuyên đề: đánh số 106 đến 140 (tương ứng 105 + số tiết CĐ, ví dụ Tiết CĐ 1 thì ghi 106, Tiết CĐ 35 thì ghi 140).
-- "lesson_title": Tên bài học hoặc tên chuyên đề học tập cụ thể (không phải tiêu đề chương tổng quát).
-- "notes": Nếu là tiết chuyên đề, BẮT BUỘC ghi "Chuyên đề" vào notes.
+1. PHÂN TÁCH ĐỒNG THỜI CHÍNH KHÓA & CHUYÊN ĐỀ TRÊN TỪNG DÒNG:
+   - Khi Cột 2 có số tiết: Trích xuất một tiết Chính khóa với:
+     + "week": số tuần hiện tại (1..35)
+     + "lesson_number": số nguyên ở Cột 2 (ví dụ: 1, 2, 3... 105)
+     + "lesson_title": nội dung chữ ở Cột 3 (ví dụ: "§1. Mệnh đề", "§2. Tập hợp và các phép toán trên tập hợp")
+     + "notes": ""
+   - Khi Cột 4 có số tiết: Trích xuất một tiết Chuyên đề với:
+     + "week": số tuần hiện tại (1..35)
+     + "lesson_number": 105 + số nguyên ở Cột 4 (ví dụ: Tiết CĐ 1 ghi 106, Tiết CĐ 2 ghi 107, Tiết CĐ 3 ghi 108... Tiết CĐ 35 ghi 140)
+     + "lesson_title": nội dung chữ ở Cột 5 (ví dụ: "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "CĐ1-§2. Ứng dụng của hệ phương trình bậc nhất ba ẩn")
+     + "notes": "Chuyên đề"
 
-HÃY TRẢ VỀ CHỈ MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần túy [ ... ]):
+2. QUY TẮC Ô GỘP VÀ Ô TRỐNG (MERGED CELLS):
+   - Cột 1 (Tuần) thường bị gộp cho 3-4 dòng: Mọi dòng nằm trong khối gộp đó đều thuộc về Tuần đó cho đến khi xuất hiện số Tuần tiếp theo.
+   - Cột 4 & Cột 5 (Chuyên đề) thường chỉ có 1 tiết/tuần ở dòng đầu của tuần đó, các dòng sau bị trống -> Chỉ tạo tiết Chuyên đề khi Cột 4 có số tiết, TUYỆT ĐỐI KHÔNG tạo tiết Chuyên đề ở các dòng trống.
+
+3. LOẠI BỎ CÁC DÒNG TIÊU ĐỀ CHƯƠNG / CHUYÊN ĐỀ TỔNG QUÁT:
+   - Các dòng tiêu đề in hoa không có số tiết ở Cột 2 và Cột 4 (như:
+     "CHƯƠNG I. MỆNH ĐỀ VÀ TẬP HỢP (9 TIẾT)",
+     "CHUYÊN ĐỀ 1. HỆ PHƯƠNG TRÌNH BẬC NHẤT BA ẨN (11 TIẾT)",
+     "CHƯƠNG II. BẤT PHƯƠNG TRÌNH VÀ HỆ BẤT PHƯƠNG TRÌNH BẬC NHẤT HAI ẨN (6 TIẾT)",
+     "CHƯƠNG III. HỆ THỨC LƯỢNG TRONG TAM GIÁC (7 TIẾT)")
+     -> ĐÂY LÀ DÒNG BANNER TIÊU ĐỀ CHƯƠNG, BỎ QUA HOÀN TOÀN, KHÔNG ĐƯỢC TẠO TIẾT HỌC CHO CÁC DÒNG NÀY!
+
+4. GIỮ NGUYÊN VĂN TÊN BÀI HỌC THEO BẢNG GỐC:
+   - Nếu bảng gốc ghi từng dòng lặp lại:
+     Dòng 1: Tiết 1 | §1. Mệnh đề
+     Dòng 2: Tiết 2 | §1. Mệnh đề
+     Dòng 3: Tiết 3 | §1. Mệnh đề
+     Dòng 4: Tiết 4 | §1. Mệnh đề
+     -> Giữ nguyên tên bài "§1. Mệnh đề" cho cả 4 tiết với lesson_number tương ứng 1, 2, 3, 4. Không tự ý thêm bớt hậu tố nếu bảng đã chia từng dòng riêng.
+
+5. VÍ DỤ MINH HỌA ĐẦU RA MẪU:
 [
-  {{
-    "week": 1,
-    "lesson_number": 1,
-    "lesson_title": "§1. Mệnh đề",
-    "notes": ""
-  }},
-  {{
-    "week": 1,
-    "lesson_number": 106,
-    "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn",
-    "notes": "Chuyên đề"
-  }}
+  {{ "week": 1, "lesson_number": 1, "lesson_title": "§1. Mệnh đề", "notes": "" }},
+  {{ "week": 1, "lesson_number": 2, "lesson_title": "§1. Mệnh đề", "notes": "" }},
+  {{ "week": 1, "lesson_number": 3, "lesson_title": "§1. Mệnh đề", "notes": "" }},
+  {{ "week": 1, "lesson_number": 106, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }},
+  {{ "week": 2, "lesson_number": 4, "lesson_title": "§1. Mệnh đề", "notes": "" }},
+  {{ "week": 2, "lesson_number": 5, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
+  {{ "week": 2, "lesson_number": 6, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
+  {{ "week": 2, "lesson_number": 107, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }},
+  {{ "week": 3, "lesson_number": 7, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
+  {{ "week": 3, "lesson_number": 8, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
+  {{ "week": 3, "lesson_number": 9, "lesson_title": "Bài tập cuối chương I", "notes": "" }},
+  {{ "week": 3, "lesson_number": 108, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }}
 ]
+
+TRẢ VỀ DUY NHẤT 1 MẢNG JSON HỢP LỆ (bắt đầu bằng [ và kết thúc bằng ]):
 """
     try:
         raw_result = await run_in_threadpool(

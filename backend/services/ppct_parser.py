@@ -172,50 +172,75 @@ def extract_ppct_with_gemini(
         return None
 
     prompt = f"""
-Bạn là chuyên gia số hóa chương trình giáo dục phổ thông (GDPT 2018) Việt Nam bậc THPT.
-Nhiệm vụ: Trích xuất TOÀN BỘ VÀ CHÍNH XÁC 100% danh sách các tiết Phân phối chương trình (PPCT) môn {default_subject} {default_grade} từ {content_name}.
+Bạn là chuyên gia phân tích và số hóa bảng Kế hoạch giáo dục / Phân phối chương trình (PPCT) môn {default_subject} {default_grade} THPT theo chuẩn Bộ GD&ĐT Việt Nam (GDPT 2018).
+Nhiệm vụ: Phân tích bảng dữ liệu từ {content_name} và trích xuất TOÀN BỘ danh sách từng tiết dạy học.
 
-ĐẶC BIỆT CHÚ Ý VỀ CẤU TRÚC VÀ QUY TẮC SỐ HÓA:
-1. ĐẦY ĐỦ CẢ NĂM (HỌC KỲ 1 VÀ HỌC KỲ 2):
-   - Môn Toán THPT chuẩn gồm 140 tiết/năm (105 tiết chính khóa + 35 tiết chuyên đề học tập).
-   - BẮT BUỘC trích xuất trọn vẹn từ Tuần 1 đến Tuần 35, bao gồm cả Học kỳ 1 (Tuần 1..18) và Học kỳ 2 (Tuần 19..35). Tuyệt đối không được dừng lại giữa chừng!
+================ CẤU TRÚC BẢNG ĐẶC TRƯNG CỦA PPCT TOÁN GDPT 2018 (BẢNG 5 CỘT) ================
+Bảng gồm 5 cột chính:
+- Cột 1: [Tuần] (ví dụ: '1 (7/9-12/9)', '2 (14/9-19/9)' -> Tuần lấy con số đầu: 1, 2, 3... 35).
+- Cột 2: [Tiết] (Đánh số từ 1 đến 105 cho phần Chính khóa).
+- Cột 3: [Chương/Bài] (Tên bài dạy Chính khóa).
+- Cột 4: [Tiết] (Đánh số từ 1 đến 35 cho phần Chuyên đề học tập).
+- Cột 5: [Chuyên đề học tập] (Tên bài Chuyên đề học tập).
 
-2. TÁCH RỜI TỪNG TIẾT HỌC:
-   - Mỗi phần tử trong mảng đại diện cho ĐÚNG 1 TIẾT HỌC (1 period).
-   - Nếu một bài học kéo dài nhiều tiết (ví dụ: 'Bài 1: Tính đơn điệu và cực trị (3 tiết)' hoặc cột Tiết ghi '1-3' hoặc '1, 2, 3'):
-     -> BẮT BUỘC tạo 3 phần tử riêng biệt với lesson_number lần lượt là 1, 2, 3 và lesson_title là 'Bài 1: Tính đơn điệu và cực trị (Tiết 1)', 'Bài 1: Tính đơn điệu và cực trị (Tiết 2)', 'Bài 1: Tính đơn điệu và cực trị (Tiết 3)'.
+================ QUY TẮC BẮT BUỘC ĐỂ TRÍCH XUẤT CHÍNH XÁC 100% ================
 
-3. CHƯƠNG TRÌNH CHÍNH KHÓA & CHUYÊN ĐỀ HỌC TẬP (BẢNG SONG SONG HOẶC BẢNG NỐI TIẾP):
-   - Phần Chính khóa: Đánh số lesson_number từ 1 đến 105.
-   - Phần Chuyên đề học tập: Đánh số lesson_number từ 106 đến 140 (tương ứng 105 + số tiết CĐ, ví dụ Tiết 1 CĐ ghi 106, Tiết 35 CĐ ghi 140).
-   - Ghi chú: Đối với các tiết Chuyên đề học tập, BẮT BUỘC ghi "Chuyên đề" vào trường notes.
+1. PHÂN TÁCH ĐỒNG THỜI CHÍNH KHÓA & CHUYÊN ĐỀ TRÊN TỪNG DÒNG:
+   - Khi Cột 2 có số tiết: Trích xuất một tiết Chính khóa với:
+     + "week": số tuần hiện tại (1..35)
+     + "lesson_number": số nguyên ở Cột 2 (ví dụ: 1, 2, 3... 105)
+     + "lesson_title": nội dung chữ ở Cột 3 (ví dụ: "§1. Mệnh đề", "§2. Tập hợp và các phép toán trên tập hợp")
+     + "notes": ""
+   - Khi Cột 4 có số tiết: Trích xuất một tiết Chuyên đề với:
+     + "week": số tuần hiện tại (1..35)
+     + "lesson_number": 105 + số nguyên ở Cột 4 (ví dụ: Tiết CĐ 1 ghi 106, Tiết CĐ 2 ghi 107, Tiết CĐ 3 ghi 108... Tiết CĐ 35 ghi 140)
+     + "lesson_title": nội dung chữ ở Cột 5 (ví dụ: "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "CĐ1-§2. Ứng dụng của hệ phương trình bậc nhất ba ẩn")
+     + "notes": "Chuyên đề"
 
-4. BỎ QUA TIÊU ĐỀ PHÂN ĐOẠN KHÔNG PHẢI TIẾT DẠY:
-   - Tuyệt đối không tạo dòng cho các tiêu đề chương/chủ đề không có số tiết cụ thể (ví dụ: "CHƯƠNG I. ỨNG DỤNG ĐẠO HÀM (15 tiết)", "CHUYÊN ĐỀ 1: ...").
-   - Bỏ qua các dòng phân bổ công thức thời lượng "(18 tuần) x (3 tiết) = 54 tiết".
+2. QUY TẮC Ô GỘP VÀ Ô TRỐNG (MERGED CELLS):
+   - Cột 1 (Tuần) thường bị gộp cho 3-4 dòng: Mọi dòng nằm trong khối gộp đó đều thuộc về Tuần đó cho đến khi xuất hiện số Tuần tiếp theo.
+   - Cột 4 & Cột 5 (Chuyên đề) thường chỉ có 1 tiết/tuần ở dòng đầu của tuần đó, các dòng sau bị trống -> Chỉ tạo tiết Chuyên đề khi Cột 4 có số tiết, không tạo tiết Chuyên đề ở các dòng trống.
 
-TRẢ VỀ DUY NHẤT MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần túy [ ... ]):
+3. LOẠI BỎ CÁC DÒNG TIÊU ĐỀ CHƯƠNG / CHUYÊN ĐỀ TỔNG QUÁT:
+   - Các dòng tiêu đề in hoa không có số tiết ở Cột 2 và Cột 4 (như:
+     "CHƯƠNG I. MỆNH ĐỀ VÀ TẬP HỢP (9 TIẾT)",
+     "CHUYÊN ĐỀ 1. HỆ PHƯƠNG TRÌNH BẬC NHẤT BA ẨN (11 TIẾT)",
+     "CHƯƠNG II. BẤT PHƯƠNG TRÌNH VÀ HỆ BẤT PHƯƠNG TRÌNH BẬC NHẤT HAI ẨN (6 TIẾT)",
+     "CHƯƠNG III. HỆ THỨC LƯỢNG TRONG TAM GIÁC (7 TIẾT)")
+     -> ĐÂY LÀ DÒNG BANNER TIÊU ĐỀ CHƯƠNG, BỎ QUA HOÀN TOÀN, KHÔNG TẠO TIẾT HỌC!
+
+4. GIỮ NGUYÊN VĂN TÊN BÀI HỌC THEO BẢNG GỐC:
+   - Nếu bảng gốc ghi từng dòng lặp lại:
+     Dòng 1: Tiết 1 | §1. Mệnh đề
+     Dòng 2: Tiết 2 | §1. Mệnh đề
+     Dòng 3: Tiết 3 | §1. Mệnh đề
+     Dòng 4: Tiết 4 | §1. Mệnh đề
+     -> Giữ nguyên tên bài "§1. Mệnh đề" cho cả 4 tiết với lesson_number tương ứng 1, 2, 3, 4.
+
+5. VÍ DỤ MINH HỌA ĐẦU RA MẪU:
 [
-  {{
-    "week": 1,
-    "lesson_number": 1,
-    "lesson_title": "§1. Mệnh đề",
-    "notes": ""
-  }},
-  {{
-    "week": 1,
-    "lesson_number": 106,
-    "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn",
-    "notes": "Chuyên đề"
-  }}
+  {{ "week": 1, "lesson_number": 1, "lesson_title": "§1. Mệnh đề", "notes": "" }},
+  {{ "week": 1, "lesson_number": 2, "lesson_title": "§1. Mệnh đề", "notes": "" }},
+  {{ "week": 1, "lesson_number": 3, "lesson_title": "§1. Mệnh đề", "notes": "" }},
+  {{ "week": 1, "lesson_number": 106, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }},
+  {{ "week": 2, "lesson_number": 4, "lesson_title": "§1. Mệnh đề", "notes": "" }},
+  {{ "week": 2, "lesson_number": 5, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
+  {{ "week": 2, "lesson_number": 6, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
+  {{ "week": 2, "lesson_number": 107, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }},
+  {{ "week": 3, "lesson_number": 7, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
+  {{ "week": 3, "lesson_number": 8, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
+  {{ "week": 3, "lesson_number": 9, "lesson_title": "Bài tập cuối chương I", "notes": "" }},
+  {{ "week": 3, "lesson_number": 108, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }}
 ]
+
+TRẢ VỀ DUY NHẤT 1 MẢNG JSON HỢP LỆ (bắt đầu bằng [ và kết thúc bằng ]):
 """
     try:
         from services.gemini_service import generate_with_gemini_pdf
         if pdf_bytes:
             raw_result = generate_with_gemini_pdf(prompt=prompt, pdf_bytes=pdf_bytes, user_key=gemini_key, selected_model=selected_model)
         else:
-            full_prompt = f"{prompt}\n\n=== NỘI DUNG TÀI LIỆU ===\n{text_content}"
+            full_prompt = f"{prompt}\n\n=== NỘI DUNG TÀI LIỆU CẦN TRÍCH XUẤT ===\n{text_content}"
             raw_result = generate_with_gemini(prompt=full_prompt, user_key=gemini_key, json_mode=True, selected_model=selected_model)
 
         cleaned = (raw_result or "").strip()
@@ -300,8 +325,167 @@ TRẢ VỀ DUY NHẤT MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần túy [ .
         return None
 
 def parse_ppct_excel(file_bytes: bytes, default_grade: str = "Khối 10", default_subject: str = "Toán") -> List[Dict[str, Any]]:
-    """Parse PPCT from Excel file (.xlsx, .xls) with smart Gemini AI primary extraction and local fallback"""
-    # 1. Primary: Gemini Flash AI
+    """Parse PPCT from Excel file (.xlsx, .xls) with high-speed local parser first and smart Gemini AI fallback"""
+    # 1. High-speed local heuristic parser (0.05s)
+    items = []
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        for sheet in wb.worksheets:
+            rows = list(sheet.iter_rows(values_only=True))
+            if not rows:
+                continue
+                
+            header_idx = -1
+            col_map = {}
+            is_dual_table = False
+            
+            # Scan first 20 rows for header
+            for idx, row in enumerate(rows[:20]):
+                clean_row = [clean_text(c) for c in row if c is not None]
+                clean_row_str = " ".join(clean_row).lower()
+                if ("chương" in clean_row_str or "bài" in clean_row_str) and ("chuyên đề" in clean_row_str or "tiết cđ" in clean_row_str or "cđ" in clean_row_str):
+                    header_idx = idx
+                    is_dual_table = True
+                    break
+                detected = detect_column_indices(clean_row)
+                if "col_title" in detected or ("col_lesson_num" in detected and "col_week" in detected):
+                    header_idx = idx
+                    col_map = detected
+                    break
+                    
+            current_week = 1
+            current_lesson_num = 1
+            current_cd_num = 1
+            start_row = header_idx + 1 if header_idx >= 0 else 0
+            
+            for row in rows[start_row:]:
+                if not row or not any(row):
+                    continue
+                    
+                clean_cells = [clean_text(c) for c in row]
+                if not any(clean_cells) or is_preamble_or_summary_row(clean_cells):
+                    continue
+
+                # Skip repeated header row
+                row_joined = " ".join(clean_cells).lower()
+                if ("chương/bài" in row_joined and "chuyên đề" in row_joined) or ("tiết ppct" in row_joined and "tiết cđ" in row_joined):
+                    continue
+                    
+                # Extract week
+                if "col_week" in col_map and col_map["col_week"] < len(clean_cells):
+                    w_str = clean_cells[col_map["col_week"]]
+                    w_nums = re.findall(r'\d+', w_str)
+                    if w_nums:
+                        try:
+                            w_val = int(w_nums[0])
+                            if 1 <= w_val <= 52:
+                                current_week = w_val
+                        except Exception:
+                            pass
+                elif len(clean_cells) >= 1:
+                    w_nums = re.findall(r'\d+', clean_cells[0])
+                    if w_nums and len(w_nums[0]) <= 2 and int(w_nums[0]) <= 52:
+                        current_week = int(w_nums[0])
+
+                # CASE A: Dual-column parallel table (>= 5 columns)
+                if is_dual_table or len(clean_cells) >= 5:
+                    t1_str = clean_cells[1] if len(clean_cells) > 1 else ""
+                    title1_str = clean_cells[2] if len(clean_cells) > 2 else ""
+                    if title1_str and is_valid_lesson_title(title1_str) and re.search(r'\d+', t1_str):
+                        nums1 = extract_lesson_numbers(t1_str, current_lesson_num)
+                        for idx_n, l_num in enumerate(nums1):
+                            sub_t = title1_str
+                            if len(nums1) > 1 and not re.search(r'tiết\s*\d+', title1_str.lower()):
+                                sub_t = f"{title1_str} (Tiết {idx_n + 1})"
+                            items.append({
+                                "grade": default_grade,
+                                "subject": default_subject,
+                                "week": current_week,
+                                "lesson_number": l_num,
+                                "lesson_title": sub_t,
+                                "notes": "",
+                                "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
+                            })
+                            current_lesson_num = max(current_lesson_num, l_num + 1)
+
+                    t2_str = clean_cells[3] if len(clean_cells) > 3 else ""
+                    title2_str = clean_cells[4] if len(clean_cells) > 4 else ""
+                    if title2_str and is_valid_lesson_title(title2_str) and re.search(r'\d+', t2_str):
+                        nums2 = extract_lesson_numbers(t2_str, current_cd_num)
+                        for idx_n, l_num in enumerate(nums2):
+                            sub_t = title2_str
+                            if len(nums2) > 1 and not re.search(r'tiết\s*\d+', title2_str.lower()):
+                                sub_t = f"{title2_str} (Tiết {idx_n + 1})"
+                            assigned_num = l_num if l_num > 105 else (105 + l_num)
+                            items.append({
+                                "grade": default_grade,
+                                "subject": default_subject,
+                                "week": current_week,
+                                "lesson_number": assigned_num,
+                                "lesson_title": sub_t,
+                                "notes": "Chuyên đề",
+                                "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
+                            })
+                            current_cd_num = max(current_cd_num, l_num + 1)
+                    continue
+
+                # Extract title
+                title_str = ""
+                if "col_title" in col_map and col_map["col_title"] < len(clean_cells):
+                    title_str = clean_cells[col_map["col_title"]]
+                elif len(clean_cells) >= 3:
+                    candidates = [c for c in clean_cells if len(c) > 3 and not re.match(r'^\d+$', c)]
+                    if candidates:
+                        title_str = candidates[0]
+                elif len(clean_cells) >= 1:
+                    title_str = clean_cells[-1]
+
+                if not title_str or not is_valid_lesson_title(title_str):
+                    continue
+                    
+                # Extract notes
+                notes_str = ""
+                if "col_notes" in col_map and col_map["col_notes"] < len(clean_cells):
+                    notes_str = clean_cells[col_map["col_notes"]]
+
+                is_cd = ("chuyên đề" in title_str.lower() or "cđ" in title_str.lower() or "chuyên đề" in notes_str.lower())
+                if is_cd and "chuyên đề" not in notes_str.lower():
+                    notes_str = f"Chuyên đề{(' - ' + notes_str) if notes_str else ''}"
+
+                # Extract lesson numbers
+                lesson_num_str = ""
+                if "col_lesson_num" in col_map and col_map["col_lesson_num"] < len(clean_cells):
+                    lesson_num_str = clean_cells[col_map["col_lesson_num"]]
+                    
+                lesson_nums = extract_lesson_numbers(lesson_num_str, current_lesson_num)
+                
+                for idx_n, l_num in enumerate(lesson_nums):
+                    sub_title = title_str
+                    if len(lesson_nums) > 1 and not re.search(r'tiết\s*\d+', title_str.lower()):
+                        sub_title = f"{title_str} (Tiết {idx_n + 1})"
+                        
+                    assigned_num = l_num
+                    if is_cd and l_num <= 35:
+                        assigned_num = 105 + l_num
+
+                    items.append({
+                        "grade": default_grade,
+                        "subject": default_subject,
+                        "week": current_week,
+                        "lesson_number": assigned_num,
+                        "lesson_title": sub_title,
+                        "notes": notes_str,
+                        "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
+                    })
+                    current_lesson_num = max(current_lesson_num, l_num + 1)
+
+        if items and len(items) >= 10:
+            logger.info(f"⚡ Excel PPCT trích xuất siêu tốc (local): {len(items)} tiết thành công!")
+            return items
+    except Exception as e:
+        logger.warning(f"Local Excel extraction exception: {e}")
+
+    # 2. Fallback: Gemini AI (for non-standard / scanned / unstructured formats)
     txt = excel_to_text(file_bytes)
     if txt:
         ai_items = extract_ppct_with_gemini(
@@ -310,169 +494,157 @@ def parse_ppct_excel(file_bytes: bytes, default_grade: str = "Khối 10", defaul
             default_grade=default_grade,
             default_subject=default_subject
         )
-        if ai_items and len(ai_items) >= 10:
+        if ai_items and len(ai_items) >= 5:
             return ai_items
-
-    # 2. Fallback: Local heuristic parser
-    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-    items = []
-    
-    for sheet in wb.worksheets:
-        rows = list(sheet.iter_rows(values_only=True))
-        if not rows:
-            continue
-            
-        header_idx = -1
-        col_map = {}
-        is_dual_table = False
-        
-        # Scan first 20 rows for header
-        for idx, row in enumerate(rows[:20]):
-            clean_row = [clean_text(c) for c in row if c is not None]
-            clean_row_str = " ".join(clean_row).lower()
-            if ("chương" in clean_row_str or "bài" in clean_row_str) and ("chuyên đề" in clean_row_str or "tiết cđ" in clean_row_str or "cđ" in clean_row_str):
-                header_idx = idx
-                is_dual_table = True
-                break
-            detected = detect_column_indices(clean_row)
-            if "col_title" in detected or ("col_lesson_num" in detected and "col_week" in detected):
-                header_idx = idx
-                col_map = detected
-                break
-                
-        current_week = 1
-        current_lesson_num = 1
-        current_cd_num = 1
-        start_row = header_idx + 1 if header_idx >= 0 else 0
-        
-        for row in rows[start_row:]:
-            if not row or not any(row):
-                continue
-                
-            clean_cells = [clean_text(c) for c in row]
-            if not any(clean_cells) or is_preamble_or_summary_row(clean_cells):
-                continue
-
-            # Skip repeated header row
-            row_joined = " ".join(clean_cells).lower()
-            if ("chương/bài" in row_joined and "chuyên đề" in row_joined) or ("tiết ppct" in row_joined and "tiết cđ" in row_joined):
-                continue
-                
-            # Extract week
-            if "col_week" in col_map and col_map["col_week"] < len(clean_cells):
-                w_str = clean_cells[col_map["col_week"]]
-                w_nums = re.findall(r'\d+', w_str)
-                if w_nums:
-                    try:
-                        w_val = int(w_nums[0])
-                        if 1 <= w_val <= 52:
-                            current_week = w_val
-                    except Exception:
-                        pass
-            elif len(clean_cells) >= 1:
-                w_nums = re.findall(r'\d+', clean_cells[0])
-                if w_nums and len(w_nums[0]) <= 2 and int(w_nums[0]) <= 52:
-                    current_week = int(w_nums[0])
-
-            # CASE A: Dual-column parallel table (>= 5 columns)
-            if is_dual_table or len(clean_cells) >= 5:
-                t1_str = clean_cells[1] if len(clean_cells) > 1 else ""
-                title1_str = clean_cells[2] if len(clean_cells) > 2 else ""
-                # Only extract main lesson if there is a valid title AND the Tiết cell is not empty / has numbers
-                if title1_str and is_valid_lesson_title(title1_str) and re.search(r'\d+', t1_str):
-                    nums1 = extract_lesson_numbers(t1_str, current_lesson_num)
-                    for idx_n, l_num in enumerate(nums1):
-                        sub_t = title1_str
-                        if len(nums1) > 1 and not re.search(r'tiết\s*\d+', title1_str.lower()):
-                            sub_t = f"{title1_str} (Tiết {idx_n + 1})"
-                        items.append({
-                            "grade": default_grade,
-                            "subject": default_subject,
-                            "week": current_week,
-                            "lesson_number": l_num,
-                            "lesson_title": sub_t,
-                            "notes": "",
-                            "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
-                        })
-                        current_lesson_num = max(current_lesson_num, l_num + 1)
-
-                t2_str = clean_cells[3] if len(clean_cells) > 3 else ""
-                title2_str = clean_cells[4] if len(clean_cells) > 4 else ""
-                # Only extract CD lesson if there is a valid title AND the Tiết CĐ cell is not empty / has numbers
-                if title2_str and is_valid_lesson_title(title2_str) and re.search(r'\d+', t2_str):
-                    nums2 = extract_lesson_numbers(t2_str, current_cd_num)
-                    for idx_n, l_num in enumerate(nums2):
-                        sub_t = title2_str
-                        if len(nums2) > 1 and not re.search(r'tiết\s*\d+', title2_str.lower()):
-                            sub_t = f"{title2_str} (Tiết {idx_n + 1})"
-                        assigned_num = l_num if l_num > 105 else (105 + l_num)
-                        items.append({
-                            "grade": default_grade,
-                            "subject": default_subject,
-                            "week": current_week,
-                            "lesson_number": assigned_num,
-                            "lesson_title": sub_t,
-                            "notes": "Chuyên đề",
-                            "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
-                        })
-                        current_cd_num = max(current_cd_num, l_num + 1)
-                continue
-
-            # Extract title
-            title_str = ""
-            if "col_title" in col_map and col_map["col_title"] < len(clean_cells):
-                title_str = clean_cells[col_map["col_title"]]
-            elif len(clean_cells) >= 3:
-                candidates = [c for c in clean_cells if len(c) > 3 and not re.match(r'^\d+$', c)]
-                if candidates:
-                    title_str = candidates[0]
-            elif len(clean_cells) >= 1:
-                title_str = clean_cells[-1]
-
-            if not title_str or not is_valid_lesson_title(title_str):
-                continue
-                
-            # Extract notes
-            notes_str = ""
-            if "col_notes" in col_map and col_map["col_notes"] < len(clean_cells):
-                notes_str = clean_cells[col_map["col_notes"]]
-
-            is_cd = ("chuyên đề" in title_str.lower() or "cđ" in title_str.lower() or "chuyên đề" in notes_str.lower())
-            if is_cd and "chuyên đề" not in notes_str.lower():
-                notes_str = f"Chuyên đề{(' - ' + notes_str) if notes_str else ''}"
-
-            # Extract lesson numbers (handles ranges 1-2, 1,2)
-            lesson_num_str = ""
-            if "col_lesson_num" in col_map and col_map["col_lesson_num"] < len(clean_cells):
-                lesson_num_str = clean_cells[col_map["col_lesson_num"]]
-                
-            lesson_nums = extract_lesson_numbers(lesson_num_str, current_lesson_num)
-            
-            for idx_n, l_num in enumerate(lesson_nums):
-                sub_title = title_str
-                if len(lesson_nums) > 1 and not re.search(r'tiết\s*\d+', title_str.lower()):
-                    sub_title = f"{title_str} (Tiết {idx_n + 1})"
-                    
-                assigned_num = l_num
-                if is_cd and l_num <= 35:
-                    assigned_num = 105 + l_num
-
-                items.append({
-                    "grade": default_grade,
-                    "subject": default_subject,
-                    "week": current_week,
-                    "lesson_number": assigned_num,
-                    "lesson_title": sub_title,
-                    "notes": notes_str,
-                    "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
-                })
-                current_lesson_num = max(current_lesson_num, l_num + 1)
 
     return items
 
 def parse_ppct_word(file_bytes: bytes, default_grade: str = "Khối 10", default_subject: str = "Toán") -> List[Dict[str, Any]]:
-    """Parse PPCT from Word document (.docx) with Gemini AI primary extraction and local fallback"""
-    # 1. Primary: Gemini Flash AI
+    """Parse PPCT from Word document (.docx) with high-speed local parser first and Gemini AI fallback"""
+    # 1. High-speed local heuristic parser (0.05s)
+    items = []
+    try:
+        doc = Document(io.BytesIO(file_bytes))
+        current_week = 1
+        current_lesson_num = 1
+        current_cd_num = 1
+
+        # Process all tables
+        for table in doc.tables:
+            if not table.rows:
+                continue
+                
+            header_row = [clean_text(cell.text) for cell in table.rows[0].cells]
+            col_map = detect_column_indices(header_row)
+            header_joined = " ".join(header_row).lower()
+            is_dual_table = ("chương" in header_joined or "bài" in header_joined) and ("chuyên đề" in header_joined or "tiết cđ" in header_joined or "cđ" in header_joined)
+            
+            start_row_idx = 1 if (is_dual_table or col_map.get("col_title") is not None or col_map.get("col_lesson_num") is not None) else 0
+
+            for row in table.rows[start_row_idx:]:
+                clean_cells = [clean_text(cell.text) for cell in row.cells]
+                if not any(clean_cells) or is_preamble_or_summary_row(clean_cells):
+                    continue
+                    
+                # If row repeats header
+                if any("tên bài" in c.lower() or "tiết" in c.lower() for c in clean_cells[:3]):
+                    continue
+
+                # Extract week
+                if "col_week" in col_map and col_map["col_week"] < len(clean_cells):
+                    w_str = clean_cells[col_map["col_week"]]
+                    w_nums = re.findall(r'\d+', w_str)
+                    if w_nums:
+                        try:
+                            w_val = int(w_nums[0])
+                            if 1 <= w_val <= 52:
+                                current_week = w_val
+                        except Exception:
+                            pass
+                elif len(clean_cells) >= 1:
+                    w_nums = re.findall(r'\d+', clean_cells[0])
+                    if w_nums and len(w_nums[0]) <= 2 and int(w_nums[0]) <= 52:
+                        current_week = int(w_nums[0])
+
+                # CASE A: Dual-column parallel table
+                if is_dual_table or len(clean_cells) >= 5:
+                    t1_str = clean_cells[1] if len(clean_cells) > 1 else ""
+                    title1_str = clean_cells[2] if len(clean_cells) > 2 else ""
+                    if title1_str and is_valid_lesson_title(title1_str) and re.search(r'\d+', t1_str):
+                        nums1 = extract_lesson_numbers(t1_str, current_lesson_num)
+                        for idx_n, l_num in enumerate(nums1):
+                            sub_t = title1_str
+                            if len(nums1) > 1 and not re.search(r'tiết\s*\d+', title1_str.lower()):
+                                sub_t = f"{title1_str} (Tiết {idx_n + 1})"
+                            items.append({
+                                "grade": default_grade,
+                                "subject": default_subject,
+                                "week": current_week,
+                                "lesson_number": l_num,
+                                "lesson_title": sub_t,
+                                "notes": "",
+                                "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
+                            })
+                            current_lesson_num = max(current_lesson_num, l_num + 1)
+
+                    t2_str = clean_cells[3] if len(clean_cells) > 3 else ""
+                    title2_str = clean_cells[4] if len(clean_cells) > 4 else ""
+                    if title2_str and is_valid_lesson_title(title2_str) and re.search(r'\d+', t2_str):
+                        nums2 = extract_lesson_numbers(t2_str, current_cd_num)
+                        for idx_n, l_num in enumerate(nums2):
+                            sub_t = title2_str
+                            if len(nums2) > 1 and not re.search(r'tiết\s*\d+', title2_str.lower()):
+                                sub_t = f"{title2_str} (Tiết {idx_n + 1})"
+                            assigned_num = l_num if l_num > 105 else (105 + l_num)
+                            items.append({
+                                "grade": default_grade,
+                                "subject": default_subject,
+                                "week": current_week,
+                                "lesson_number": assigned_num,
+                                "lesson_title": sub_t,
+                                "notes": "Chuyên đề",
+                                "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
+                            })
+                            current_cd_num = max(current_cd_num, l_num + 1)
+                    continue
+
+                # Extract title
+                title_str = ""
+                if "col_title" in col_map and col_map["col_title"] < len(clean_cells):
+                    title_str = clean_cells[col_map["col_title"]]
+                elif len(clean_cells) >= 3:
+                    candidates = [c for c in clean_cells if len(c) > 3 and not re.match(r'^\d+$', c)]
+                    if candidates:
+                        title_str = candidates[0]
+                elif len(clean_cells) >= 1:
+                    title_str = clean_cells[-1]
+
+                if not title_str or not is_valid_lesson_title(title_str):
+                    continue
+
+                # Extract notes
+                notes_str = ""
+                if "col_notes" in col_map and col_map["col_notes"] < len(clean_cells):
+                    notes_str = clean_cells[col_map["col_notes"]]
+
+                is_cd = ("chuyên đề" in title_str.lower() or "cđ" in title_str.lower() or "chuyên đề" in notes_str.lower())
+                if is_cd and "chuyên đề" not in notes_str.lower():
+                    notes_str = f"Chuyên đề{(' - ' + notes_str) if notes_str else ''}"
+
+                # Extract lesson numbers
+                lesson_num_str = ""
+                if "col_lesson_num" in col_map and col_map["col_lesson_num"] < len(clean_cells):
+                    lesson_num_str = clean_cells[col_map["col_lesson_num"]]
+                    
+                lesson_nums = extract_lesson_numbers(lesson_num_str, current_lesson_num)
+
+                for idx_n, l_num in enumerate(lesson_nums):
+                    sub_title = title_str
+                    if len(lesson_nums) > 1 and not re.search(r'tiết\s*\d+', title_str.lower()):
+                        sub_title = f"{title_str} (Tiết {idx_n + 1})"
+                        
+                    assigned_num = l_num
+                    if is_cd and l_num <= 35:
+                        assigned_num = 105 + l_num
+
+                    items.append({
+                        "grade": default_grade,
+                        "subject": default_subject,
+                        "week": current_week,
+                        "lesson_number": assigned_num,
+                        "lesson_title": sub_title,
+                        "notes": notes_str,
+                        "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
+                    })
+                    current_lesson_num = max(current_lesson_num, l_num + 1)
+
+        if items and len(items) >= 10:
+            logger.info(f"⚡ Word PPCT trích xuất siêu tốc (local): {len(items)} tiết thành công!")
+            return items
+    except Exception as e:
+        logger.warning(f"Local Word extraction exception: {e}")
+
+    # 2. Fallback: Gemini AI
     txt = word_to_text(file_bytes)
     if txt:
         ai_items = extract_ppct_with_gemini(
@@ -481,146 +653,8 @@ def parse_ppct_word(file_bytes: bytes, default_grade: str = "Khối 10", default
             default_grade=default_grade,
             default_subject=default_subject
         )
-        if ai_items and len(ai_items) >= 10:
+        if ai_items and len(ai_items) >= 5:
             return ai_items
-
-    # 2. Fallback: Local heuristic parser
-    doc = Document(io.BytesIO(file_bytes))
-    items = []
-    current_week = 1
-    current_lesson_num = 1
-    current_cd_num = 1
-
-    # 1. Process all tables
-    for table in doc.tables:
-        if not table.rows:
-            continue
-            
-        header_row = [clean_text(cell.text) for cell in table.rows[0].cells]
-        col_map = detect_column_indices(header_row)
-        header_joined = " ".join(header_row).lower()
-        is_dual_table = ("chương" in header_joined or "bài" in header_joined) and ("chuyên đề" in header_joined or "tiết cđ" in header_joined or "cđ" in header_joined)
-        
-        start_row_idx = 1 if (is_dual_table or col_map.get("col_title") is not None or col_map.get("col_lesson_num") is not None) else 0
-
-        for row in table.rows[start_row_idx:]:
-            clean_cells = [clean_text(cell.text) for cell in row.cells]
-            if not any(clean_cells) or is_preamble_or_summary_row(clean_cells):
-                continue
-                
-            # If row repeats header
-            if any("tên bài" in c.lower() or "tiết" in c.lower() for c in clean_cells[:3]):
-                continue
-
-            # Extract week
-            if "col_week" in col_map and col_map["col_week"] < len(clean_cells):
-                w_str = clean_cells[col_map["col_week"]]
-                w_nums = re.findall(r'\d+', w_str)
-                if w_nums:
-                    try:
-                        w_val = int(w_nums[0])
-                        if 1 <= w_val <= 52:
-                            current_week = w_val
-                    except Exception:
-                        pass
-            elif len(clean_cells) >= 1:
-                w_nums = re.findall(r'\d+', clean_cells[0])
-                if w_nums and len(w_nums[0]) <= 2 and int(w_nums[0]) <= 52:
-                    current_week = int(w_nums[0])
-
-            # CASE A: Dual-column parallel table
-            if is_dual_table or len(clean_cells) >= 5:
-                t1_str = clean_cells[1] if len(clean_cells) > 1 else ""
-                title1_str = clean_cells[2] if len(clean_cells) > 2 else ""
-                # Only extract main lesson if there is a valid title AND the Tiết cell is not empty / has numbers
-                if title1_str and is_valid_lesson_title(title1_str) and re.search(r'\d+', t1_str):
-                    nums1 = extract_lesson_numbers(t1_str, current_lesson_num)
-                    for idx_n, l_num in enumerate(nums1):
-                        sub_t = title1_str
-                        if len(nums1) > 1 and not re.search(r'tiết\s*\d+', title1_str.lower()):
-                            sub_t = f"{title1_str} (Tiết {idx_n + 1})"
-                        items.append({
-                            "grade": default_grade,
-                            "subject": default_subject,
-                            "week": current_week,
-                            "lesson_number": l_num,
-                            "lesson_title": sub_t,
-                            "notes": "",
-                            "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
-                        })
-                        current_lesson_num = max(current_lesson_num, l_num + 1)
-
-                t2_str = clean_cells[3] if len(clean_cells) > 3 else ""
-                title2_str = clean_cells[4] if len(clean_cells) > 4 else ""
-                # Only extract CD lesson if there is a valid title AND the Tiết CĐ cell is not empty / has numbers
-                if title2_str and is_valid_lesson_title(title2_str) and re.search(r'\d+', t2_str):
-                    nums2 = extract_lesson_numbers(t2_str, current_cd_num)
-                    for idx_n, l_num in enumerate(nums2):
-                        sub_t = title2_str
-                        if len(nums2) > 1 and not re.search(r'tiết\s*\d+', title2_str.lower()):
-                            sub_t = f"{title2_str} (Tiết {idx_n + 1})"
-                        assigned_num = l_num if l_num > 105 else (105 + l_num)
-                        items.append({
-                            "grade": default_grade,
-                            "subject": default_subject,
-                            "week": current_week,
-                            "lesson_number": assigned_num,
-                            "lesson_title": sub_t,
-                            "notes": "Chuyên đề",
-                            "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
-                        })
-                        current_cd_num = max(current_cd_num, l_num + 1)
-                continue
-
-            # Extract title
-            title_str = ""
-            if "col_title" in col_map and col_map["col_title"] < len(clean_cells):
-                title_str = clean_cells[col_map["col_title"]]
-            elif len(clean_cells) >= 3:
-                candidates = [c for c in clean_cells if len(c) > 3 and not re.match(r'^\d+$', c)]
-                if candidates:
-                    title_str = candidates[0]
-            elif len(clean_cells) >= 1:
-                title_str = clean_cells[-1]
-
-            if not title_str or not is_valid_lesson_title(title_str):
-                continue
-
-            # Extract notes
-            notes_str = ""
-            if "col_notes" in col_map and col_map["col_notes"] < len(clean_cells):
-                notes_str = clean_cells[col_map["col_notes"]]
-
-            is_cd = ("chuyên đề" in title_str.lower() or "cđ" in title_str.lower() or "chuyên đề" in notes_str.lower())
-            if is_cd and "chuyên đề" not in notes_str.lower():
-                notes_str = f"Chuyên đề{(' - ' + notes_str) if notes_str else ''}"
-
-            # Extract lesson numbers
-            lesson_num_str = ""
-            if "col_lesson_num" in col_map and col_map["col_lesson_num"] < len(clean_cells):
-                lesson_num_str = clean_cells[col_map["col_lesson_num"]]
-                
-            lesson_nums = extract_lesson_numbers(lesson_num_str, current_lesson_num)
-
-            for idx_n, l_num in enumerate(lesson_nums):
-                sub_title = title_str
-                if len(lesson_nums) > 1 and not re.search(r'tiết\s*\d+', title_str.lower()):
-                    sub_title = f"{title_str} (Tiết {idx_n + 1})"
-                    
-                assigned_num = l_num
-                if is_cd and l_num <= 35:
-                    assigned_num = 105 + l_num
-
-                items.append({
-                    "grade": default_grade,
-                    "subject": default_subject,
-                    "week": current_week,
-                    "lesson_number": assigned_num,
-                    "lesson_title": sub_title,
-                    "notes": notes_str,
-                    "semester": "Học kỳ 1" if current_week <= 18 else "Học kỳ 2"
-                })
-                current_lesson_num = max(current_lesson_num, l_num + 1)
 
     return items
 
@@ -1058,32 +1092,21 @@ def parse_ppct_pdf(
     selected_model: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
-    Lightning-fast Hybrid PPCT PDF Parser:
-    Step 1 (AI Primary): Direct Gemini Flash processing in JSON mode for 100% accurate extraction.
-    Step 2 (Fallback): High-speed local table engine parses 5-column parallel tables.
-    Step 3 (Fallback): High-speed local text engine parses line-by-line digital text.
+    Ultra-fast Hybrid PPCT PDF Parser:
+    Step 1 (High Speed Local Table): Parses vector PDF tables in ~0.05s.
+    Step 2 (High Speed Local Text): Parses line-by-line digital PDF text.
+    Step 3 (AI Fallback): Direct Gemini Flash for scanned / non-standard PDFs.
     """
-    # 1. STEP 1: GEMINI FLASH AI DIRECT EXTRACTION (PRIMARY)
-    ai_items = extract_ppct_with_gemini(
-        f"File PDF môn {default_subject} {default_grade}",
-        default_grade=default_grade,
-        default_subject=default_subject,
-        pdf_bytes=file_bytes,
-        selected_model=selected_model
-    )
-    if ai_items and len(ai_items) >= 10:
-        return ai_items
-
-    # 2. STEP 2: INSTANT LOCAL TABLE EXTRACTION (FALLBACK)
+    # 1. STEP 1: INSTANT LOCAL TABLE EXTRACTION
     try:
         table_items = parse_pdf_tables(file_bytes, default_grade=default_grade, default_subject=default_subject)
-        if len(table_items) >= 20:
-            logger.info(f"⚡ Đã bóc tách {len(table_items)} tiết PPCT từ bảng PDF (Fallback local)!")
+        if len(table_items) >= 15:
+            logger.info(f"⚡ Đã bóc tách siêu tốc {len(table_items)} tiết PPCT từ bảng PDF (Local)!")
             return table_items
     except Exception as e:
         logger.warning(f"Local table extraction error: {e}")
 
-    # 3. STEP 3: INSTANT LOCAL TEXT ENGINE (FALLBACK)
+    # 2. STEP 2: INSTANT LOCAL TEXT ENGINE
     try:
         import fitz
         doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -1095,11 +1118,22 @@ def parse_ppct_pdf(
         doc.close()
 
         text_items = parse_ppct_text_lines(all_lines, default_grade=default_grade, default_subject=default_subject)
-        if len(text_items) >= 20:
-            logger.info(f"⚡ Đã bóc tách {len(text_items)} tiết PPCT từ văn bản PDF (Fallback local)!")
+        if len(text_items) >= 15:
+            logger.info(f"⚡ Đã bóc tách siêu tốc {len(text_items)} tiết PPCT từ văn bản PDF (Local)!")
             return text_items
     except Exception as e:
         logger.warning(f"Local text extraction error: {e}")
+
+    # 3. STEP 3: GEMINI FLASH AI FALLBACK (FOR SCANNED / UNSTRUCTURED PDF)
+    ai_items = extract_ppct_with_gemini(
+        f"File PDF môn {default_subject} {default_grade}",
+        default_grade=default_grade,
+        default_subject=default_subject,
+        pdf_bytes=file_bytes,
+        selected_model=selected_model
+    )
+    if ai_items and len(ai_items) >= 5:
+        return ai_items
 
     return table_items if 'table_items' in locals() and table_items else []
 
@@ -1110,8 +1144,15 @@ def parse_ppct_text(
     default_subject: str = "Toán",
     selected_model: Optional[str] = None
 ) -> List[Dict[str, Any]]:
-    """Parse PPCT directly from pasted text / clipboard with Gemini Flash AI primary and local fallback"""
-    # 1. Primary: Gemini Flash AI
+    """Parse PPCT directly from pasted text / clipboard with high-speed local parser first and Gemini AI fallback"""
+    # 1. High-speed local line parsing
+    lines = [clean_text(line) for line in raw_text.splitlines() if clean_text(line)]
+    local_items = parse_ppct_text_lines(lines, default_grade=default_grade, default_subject=default_subject)
+    if local_items and len(local_items) >= 5:
+        logger.info(f"⚡ Đã bóc tách siêu tốc {len(local_items)} tiết PPCT từ nội dung dán (Local)!")
+        return local_items
+
+    # 2. Fallback: Gemini Flash AI
     ai_items = extract_ppct_with_gemini(
         f"Văn bản PPCT dán môn {default_subject} {default_grade}",
         text_content=raw_text,
@@ -1122,7 +1163,5 @@ def parse_ppct_text(
     if ai_items and len(ai_items) >= 1:
         return ai_items
 
-    # 2. Fallback: Local line parsing
-    lines = [clean_text(line) for line in raw_text.splitlines() if clean_text(line)]
-    return parse_ppct_text_lines(lines, default_grade=default_grade, default_subject=default_subject)
+    return local_items if local_items else []
 
