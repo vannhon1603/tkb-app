@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from db.session import get_db
 from db.models import SettingModel
 from schemas.settings import SettingCreate, SettingResponse
+from routers.auth import get_current_user_id
 
 router = APIRouter(prefix="/settings", tags=["System Settings"])
 
@@ -12,8 +13,11 @@ async def list_settings(db: Session = Depends(get_db)):
     return db.query(SettingModel).all()
 
 @router.post("/seed-demo")
-async def seed_demo_data(db: Session = Depends(get_db)):
-    """Populates standard sample PPCT, TKB, and auto-generates Sổ Báo Giảng for instant testing"""
+async def seed_demo_data(
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """Populates standard sample PPCT, TKB, and auto-generates Sổ Báo Giảng for instant testing for the current user"""
     from db.models import PPCTModel, TKBSlotModel, SoBaoGiangEntryModel
     from services.so_bao_giang_service import SoBaoGiangService
 
@@ -37,10 +41,15 @@ async def seed_demo_data(db: Session = Depends(get_db)):
         (8, 16, "Ôn tập và kiểm tra giữa học kỳ I", "Đề cương ôn tập"),
     ]
 
-    # Delete existing demo subject if present
-    db.query(PPCTModel).filter(PPCTModel.grade == "Khối 10", PPCTModel.subject == "Toán").delete()
+    # Delete existing demo subject if present for user
+    db.query(PPCTModel).filter(
+        PPCTModel.user_id == user_id,
+        PPCTModel.grade == "Khối 10",
+        PPCTModel.subject == "Toán"
+    ).delete()
     for week, lesson_num, title, notes in sample_ppct:
         db.add(PPCTModel(
+            user_id=user_id,
             grade="Khối 10",
             subject="Toán",
             week=week,
@@ -68,9 +77,13 @@ async def seed_demo_data(db: Session = Depends(get_db)):
         ("Thầy Nguyễn Văn An", "10A2", "Toán", 7, 1, "Sáng"),
     ]
 
-    db.query(TKBSlotModel).filter(TKBSlotModel.teacher_name == "Thầy Nguyễn Văn An").delete()
+    db.query(TKBSlotModel).filter(
+        TKBSlotModel.user_id == user_id,
+        TKBSlotModel.teacher_name == "Thầy Nguyễn Văn An"
+    ).delete()
     for teacher, cls, sub, day, per, sess in sample_tkb:
         db.add(TKBSlotModel(
+            user_id=user_id,
             teacher_name=teacher,
             class_name=cls,
             subject=sub,
@@ -88,7 +101,8 @@ async def seed_demo_data(db: Session = Depends(get_db)):
         week_number=1,
         start_date_str=today,
         teacher_name="Thầy Nguyễn Văn An",
-        overwrite=True
+        overwrite=True,
+        user_id=user_id
     )
 
     return {

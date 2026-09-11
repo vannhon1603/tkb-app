@@ -12,13 +12,11 @@ import {
   ShieldCheck,
   School,
   Lock,
-  Zap,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 
 export function GoogleAuthScreen() {
-  const { loginWithGoogle, login } = useAuth();
+  const { loginWithGoogle } = useAuth();
   const { theme, resolvedTheme } = useTheme();
   const currentTheme = theme === "system" ? resolvedTheme : theme;
 
@@ -87,16 +85,6 @@ export function GoogleAuthScreen() {
 
     return () => clearInterval(timer);
   }, [currentTheme, handleCredentialResponse]);
-
-  const handleDemoBypass = () => {
-    login("demo_session_token", {
-      id: "demo_teacher",
-      name: "Giáo viên Demo",
-      email: "demo@school.edu.vn",
-      role: "user",
-    });
-    toast.success("Đã vào hệ thống ở chế độ Trải nghiệm nhanh!");
-  };
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-emerald-50/30 to-teal-50/40 dark:from-[#0d1117] dark:via-[#161b22] dark:to-[#0d1117] flex items-center justify-center p-4 relative overflow-hidden font-sans">
@@ -185,25 +173,6 @@ export function GoogleAuthScreen() {
             <div className="flex justify-center min-h-[44px]">
               <div id="google-main-signin-btn" />
             </div>
-
-            <div className="relative flex py-1 items-center">
-              <div className="grow border-t border-slate-200 dark:border-slate-800" />
-              <span className="shrink mx-3 text-[11px] uppercase font-semibold text-slate-400 tracking-wider">
-                hoặc
-              </span>
-              <div className="grow border-t border-slate-200 dark:border-slate-800" />
-            </div>
-
-            {/* Quick Demo Bypass Button */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleDemoBypass}
-              className="w-full h-10 text-xs font-semibold rounded-xl border-[#d0d7de] dark:border-[#30363d] gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-500 transition-all text-slate-700 dark:text-slate-200 shadow-2xs"
-            >
-              <Zap className="w-4 h-4 text-amber-500" />
-              <span>Trải Nghiệm Nhanh (Dành cho Giáo viên)</span>
-            </Button>
           </div>
         </div>
       </div>

@@ -65,7 +65,7 @@ export function PPCTTab() {
   const [items, setItems] = useState<PPCTItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [selectedGrade, setSelectedGrade] = useState("all");
+  const [selectedGrade, setSelectedGrade] = useState("Khối 10");
   const [selectedSubject, setSelectedSubject] = useState("all");
   const [selectedWeek, setSelectedWeek] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -360,7 +360,7 @@ export function PPCTTab() {
         : "");
 
     if (!effectiveKey && !isGeminiConfigured) {
-      toast.error("⚠️ Vui lòng nhập hoặc dán mã Gemini API Key vào ô màu vàng bên trên để AI Vision đọc ảnh!", {
+      toast.error("⚠️ Vui lòng cấu hình Gemini API Key trong tab Cài Đặt hoặc biểu tượng Key trên thanh tiêu đề để AI xử lý!", {
         duration: 6000,
       });
       return;
@@ -532,7 +532,9 @@ export function PPCTTab() {
     const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
     const gradeParam = selectedGrade !== "all" ? encodeURIComponent(selectedGrade) : "";
     const subjectParam = selectedSubject !== "all" ? encodeURIComponent(selectedSubject) : "";
-    const url = `${BASE_URL}/api/ppct/export/excel?grade=${gradeParam}&subject=${subjectParam}`;
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") || "" : "";
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+    const url = `${BASE_URL}/api/ppct/export/excel?grade=${gradeParam}&subject=${subjectParam}${tokenParam}`;
     window.open(url, "_blank");
   };
 
@@ -581,15 +583,21 @@ export function PPCTTab() {
     }
   };
 
-  const filteredItems = items.filter((item) => {
-    const matchGrade = selectedGrade === "all" || item.grade === selectedGrade;
-    const matchSubject = selectedSubject === "all" || item.subject === selectedSubject;
-    const matchWeek = selectedWeek === "all" || item.week === Number(selectedWeek);
-    const matchSearch =
-      item.lesson_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(item.lesson_number).includes(searchQuery);
-    return matchGrade && matchSubject && matchWeek && matchSearch;
-  });
+  const deferredSearch = React.useDeferredValue(searchQuery);
+
+  const filteredItems = useMemo(() => {
+    const query = deferredSearch.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchGrade = selectedGrade === "all" || item.grade === selectedGrade;
+      const matchSubject = selectedSubject === "all" || item.subject === selectedSubject;
+      const matchWeek = selectedWeek === "all" || item.week === Number(selectedWeek);
+      const matchSearch =
+        !query ||
+        item.lesson_title.toLowerCase().includes(query) ||
+        String(item.lesson_number).includes(query);
+      return matchGrade && matchSubject && matchWeek && matchSearch;
+    });
+  }, [items, selectedGrade, selectedSubject, selectedWeek, deferredSearch]);
 
   const handleToggleSelectAll = () => {
     if (selectedIds.length === filteredItems.length && filteredItems.length > 0) {
@@ -608,7 +616,12 @@ export function PPCTTab() {
   };
 
   const summaryStats = useMemo(() => {
-    const activeItems = selectedGrade !== "all" || selectedSubject !== "all" ? filteredItems : items;
+    // For summary calculation, filter by grade and subject only (so search box typing doesn't recompute summary)
+    const activeItems = items.filter((item) => {
+      const matchGrade = selectedGrade === "all" || item.grade === selectedGrade;
+      const matchSubject = selectedSubject === "all" || item.subject === selectedSubject;
+      return matchGrade && matchSubject;
+    });
 
     // Total count
     const total = activeItems.length;
@@ -673,7 +686,7 @@ export function PPCTTab() {
       hk2SGKPerWeek: formatPerWeek(hk2SGKPerWeek),
       hk2CDPerWeek: formatPerWeek(hk2CDPerWeek),
     };
-  }, [items, filteredItems, selectedGrade, selectedSubject]);
+  }, [items, selectedGrade, selectedSubject]);
 
   return (
     <div className="space-y-4">
@@ -874,7 +887,46 @@ export function PPCTTab() {
           </Badge>
         </div>
 
-        <div className="overflow-x-auto custom-scrollbar p-3">
+        {/* MOBILE VIEW (block md:hidden): 3-Card Summary */}
+        <div className="block md:hidden p-3 space-y-2.5">
+          <div className="p-3 bg-slate-50 dark:bg-[#0d1117] rounded-lg border border-slate-200 dark:border-slate-800 space-y-1">
+            <div className="font-bold text-xs text-slate-800 dark:text-slate-200">
+              📊 Tổng cả năm: <span className="text-emerald-600">{summaryStats.total} tiết</span>
+            </div>
+            <div className="text-[11px] text-slate-500">
+              SGK chính khóa: <strong>{summaryStats.sgkTotal}</strong> tiết • Chuyên đề: <strong>{summaryStats.cdTotal}</strong> tiết
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2.5 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900/40 space-y-1">
+              <span className="font-bold text-[11px] text-blue-900 dark:text-blue-300">
+                Học kỳ 1 ({summaryStats.hk1WeeksCount} tuần)
+              </span>
+              <div className="text-xs font-bold text-blue-700 dark:text-blue-400">
+                {summaryStats.hk1Total} tiết ({summaryStats.hk1TotalPerWeek} t/tuần)
+              </div>
+              <div className="text-[10px] text-slate-500">
+                SGK: {summaryStats.hk1SGKCount} • CĐ: {summaryStats.hk1CDCount}
+              </div>
+            </div>
+
+            <div className="p-2.5 bg-purple-50/50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-900/40 space-y-1">
+              <span className="font-bold text-[11px] text-purple-900 dark:text-purple-300">
+                Học kỳ 2 ({summaryStats.hk2WeeksCount} tuần)
+              </span>
+              <div className="text-xs font-bold text-purple-700 dark:text-purple-400">
+                {summaryStats.hk2Total} tiết ({summaryStats.hk2TotalPerWeek} t/tuần)
+              </div>
+              <div className="text-[10px] text-slate-500">
+                SGK: {summaryStats.hk2SGKCount} • CĐ: {summaryStats.hk2CDCount}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* DESKTOP VIEW (hidden md:block): Multi-Column Summary Table */}
+        <div className="hidden md:block overflow-x-auto custom-scrollbar p-3">
           <table className="w-full text-center text-xs border-collapse border border-slate-300 dark:border-slate-700">
             <thead>
               <tr className="bg-slate-100 dark:bg-[#21262d] font-bold text-[#24292f] dark:text-[#c9d1d9]">
@@ -965,9 +1017,148 @@ export function PPCTTab() {
         </div>
       </div>
 
-      {/* PPCT Table */}
+      {/* PPCT Lessons Container */}
       <div className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto custom-scrollbar">
+        {/* MOBILE VIEW (block md:hidden): Touch-Friendly Week Grouped Cards */}
+        <div className="block md:hidden divide-y divide-[#d0d7de] dark:divide-[#30363d]">
+          {isLoading ? (
+            <div className="p-8 text-center text-slate-400">
+              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-600" />
+              Đang tải dữ liệu PPCT...
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 space-y-2">
+              <BookOpen className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
+              <p className="font-semibold text-slate-600 dark:text-slate-400">
+                Chưa có dữ liệu Phân phối chương trình
+              </p>
+            </div>
+          ) : (
+            (() => {
+              // Group items by week
+              const weeksMap = new Map<number, PPCTItem[]>();
+              filteredItems.forEach((item) => {
+                if (!weeksMap.has(item.week)) {
+                  weeksMap.set(item.week, []);
+                }
+                weeksMap.get(item.week)!.push(item);
+              });
+
+              return Array.from(weeksMap.entries()).map(([weekNum, weekLessons]) => {
+                const isEvenWeek = weekNum % 2 === 0;
+                const chinhKhoa = weekLessons.filter((x) => !isChuyenDeLesson(x.lesson_number, x.notes, x.lesson_title)).length;
+                const chuyenDe = weekLessons.filter((x) => isChuyenDeLesson(x.lesson_number, x.notes, x.lesson_title)).length;
+
+                return (
+                  <div key={`m-ppct-week-${weekNum}`} className="space-y-0">
+                    {/* Week Header */}
+                    <div
+                      className={`px-3.5 py-2 flex items-center justify-between border-b ${
+                        isEvenWeek
+                          ? "bg-blue-50/80 dark:bg-[#1a2333] border-blue-200 dark:border-blue-900/60"
+                          : "bg-emerald-50/80 dark:bg-[#132320] border-emerald-200 dark:border-emerald-900/60"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${isEvenWeek ? "bg-blue-500" : "bg-emerald-500"}`} />
+                        <span className={`font-bold text-xs ${isEvenWeek ? "text-blue-900 dark:text-blue-300" : "text-emerald-900 dark:text-emerald-300"}`}>
+                          TUẦN {weekNum} {weekNum <= 18 ? "(HK1)" : "(HK2)"}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+                        {weekLessons.length} tiết ({chinhKhoa} chính khóa{chuyenDe > 0 ? ` + ${chuyenDe} CĐ` : ""})
+                      </span>
+                    </div>
+
+                    {/* Week Lesson Items */}
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {weekLessons.map((item) => {
+                        const isSelected = selectedIds.includes(item.id);
+                        return (
+                          <div
+                            key={`m-item-${item.id}`}
+                            className={`p-3 space-y-1.5 transition-colors ${
+                              isSelected
+                                ? "bg-emerald-100/50 dark:bg-emerald-950/40"
+                                : "bg-white dark:bg-[#161b22]"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => handleToggleSelectItem(item.id)}
+                                  className="mt-0.5"
+                                />
+                                {isChuyenDeLesson(item.lesson_number, item.notes, item.lesson_title) ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[11px]">
+                                    <BookOpen className="w-3 h-3 text-purple-600 shrink-0" />
+                                    <span>Tiết PPCT {formatPPCTLessonNumber(item.lesson_number, item.notes, item.lesson_title)}</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px]">
+                                    <BookOpen className="w-3 h-3 text-blue-600 shrink-0" />
+                                    <span>Tiết PPCT {item.lesson_number}</span>
+                                  </span>
+                                )}
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-medium border border-slate-200 dark:border-slate-700">
+                                  {item.grade} - {item.subject}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleOpenEdit(item)}
+                                  className="h-6 w-6 text-slate-400 hover:text-emerald-600"
+                                  title="Sửa"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDuplicateItem(item)}
+                                  className="h-6 w-6 text-slate-400 hover:text-blue-600"
+                                  title="Nhân bản"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="h-6 w-6 text-slate-400 hover:text-red-600"
+                                  title="Xóa"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 leading-snug pl-6">
+                              {item.lesson_title}
+                            </p>
+
+                            {item.notes && (
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 italic pl-6">
+                                Ghi chú / ĐDDH: {item.notes}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              });
+            })()
+          )}
+        </div>
+
+        {/* DESKTOP VIEW (hidden md:block): Multi-Column Table */}
+        <div className="hidden md:block overflow-x-auto custom-scrollbar">
           <table className="w-full min-w-[700px] text-left text-xs">
             <thead className="bg-slate-50 dark:bg-[#0d1117] border-b border-[#d0d7de] dark:border-[#30363d] text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
               <tr>
@@ -1222,101 +1413,6 @@ export function PPCTTab() {
                     <SelectItem value="Giáo dục quốc phòng và an ninh">GDQP - AN</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-
-            {/* Gemini API Key Configuration Alert / Input */}
-            <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800/60 rounded-lg space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
-              <div className="flex items-center justify-between font-bold">
-                <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                  Gemini API Key (Dùng để AI Vision & Multimodal trích xuất 100%):
-                </span>
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-normal"
-                >
-                  Lấy Key miễn phí ↗
-                </a>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                <div className="sm:col-span-2 flex items-center gap-2">
-                  <Input
-                    type="password"
-                    placeholder="Dán mã API Key (AIzaSy...) vào đây..."
-                    value={geminiApiKey}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setGeminiApiKey(val);
-                      if (typeof window !== "undefined") {
-                        localStorage.setItem("gemini_api_key", val);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      if (e.target.value.trim()) {
-                        handleSaveAndSyncKey(e.target.value);
-                      }
-                    }}
-                    className="h-8 text-xs bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 flex-1"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      if (!geminiApiKey.trim()) {
-                        toast.error("Vui lòng nhập API Key");
-                        return;
-                      }
-                      try {
-                        await handleSaveAndSyncKey(geminiApiKey);
-                        const res = await apiClient<{ success: boolean; message: string }>("/api/gemini/test", {
-                          method: "POST",
-                          body: JSON.stringify({ api_key: geminiApiKey.trim() }),
-                        });
-                        if (res.success) {
-                          toast.success("✅ " + res.message);
-                        } else {
-                          toast.error("❌ " + res.message);
-                        }
-                      } catch (err: any) {
-                        toast.error(err?.message || "Lỗi kiểm tra key");
-                      }
-                    }}
-                    className="h-8 text-xs shrink-0 bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200"
-                  >
-                    Lưu & Test Key
-                  </Button>
-                </div>
-                <div>
-                  <Select
-                    value={selectedGeminiModel}
-                    onValueChange={(val) => {
-                      setSelectedGeminiModel(val);
-                      if (typeof window !== "undefined") {
-                        localStorage.setItem("gemini_selected_model", val);
-                      }
-                      toast.success(`Đã chọn mô hình: ${val}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-[11px] bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200">
-                      <SelectValue placeholder="Chọn Model AI" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gemini-2.0-flash-lite">⚡ 2.0 Flash Lite (Siêu tốc)</SelectItem>
-                      <SelectItem value="gemini-2.0-flash">🚀 2.0 Flash (Mới nhất)</SelectItem>
-                      <SelectItem value="gemini-1.5-flash-8b">⚡ 1.5 Flash 8B (Nhẹ)</SelectItem>
-                      <SelectItem value="gemini-1.5-flash">⚡ 1.5 Flash (Chuẩn)</SelectItem>
-                      <SelectItem value="gemini-1.5-pro">💎 1.5 Pro (Độ nét cao)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-amber-700/80 dark:text-amber-400/80 pt-0.5">
-                <span>* Hệ thống tự động gửi API Key và Model được chọn cho mọi lượt trích xuất.</span>
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400">Model hiện tại: {selectedGeminiModel}</span>
               </div>
             </div>
 

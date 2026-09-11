@@ -1,12 +1,14 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from sqlalchemy import distinct
 from typing import List, Optional
 
 from db.session import get_db
 from db.models import TKBSlotModel
-from schemas.tkb import TKBSlotResponse, TKBSlotCreate, TKBUploadResponse
+from schemas.tkb import TKBSlotResponse, TKBSlotCreate, TKBSlotUpdate, TKBUploadResponse
 from services.tkb_parser import parse_tkb_excel, parse_tkb_pdf
+from routers.auth import get_current_user_id
 from logger import logger
 
 router = APIRouter(prefix="/tkb", tags=["Thời Khóa Biểu (TKB)"])
@@ -15,7 +17,10 @@ router = APIRouter(prefix="/tkb", tags=["Thời Khóa Biểu (TKB)"])
 async def upload_tkb_file(
     file: UploadFile = File(...),
     teacher_name: str = Form("Giáo viên"),
+    from_week: int = Form(1),
+    to_week: int = Form(35),
     overwrite: bool = Form(True),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     content = await file.read()
@@ -23,9 +28,9 @@ async def upload_tkb_file(
     
     parsed_slots = []
     if filename.endswith(".xlsx") or filename.endswith(".xls"):
-        parsed_slots = parse_tkb_excel(content, default_teacher=teacher_name)
+        parsed_slots = await run_in_threadpool(parse_tkb_excel, content, default_teacher=teacher_name)
     elif filename.endswith(".pdf"):
-        parsed_slots = parse_tkb_pdf(content, default_teacher=teacher_name)
+        parsed_slots = await run_in_threadpool(parse_tkb_pdf, content, default_teacher=teacher_name)
     else:
         raise HTTPException(status_code=400, detail="Vui lòng tải lên file định dạng Excel (.xlsx) hoặc PDF (.pdf)")
 
@@ -33,22 +38,29 @@ async def upload_tkb_file(
         raise HTTPException(status_code=400, detail="Không nhận diện được tiết dạy trong file TKB. Vui lòng kiểm tra định dạng bảng.")
 
     if overwrite:
-        if teacher_name and teacher_name != "Giáo viên":
-            db.query(TKBSlotModel).filter(TKBSlotModel.teacher_name == teacher_name).delete()
-        else:
-            db.query(TKBSlotModel).delete()
+        del_q = db.query(TKBSlotModel).filter(
+            TKBSlotModel.user_id == user_id,
+            TKBSlotModel.from_week <= to_week,
+            TKBSlotModel.to_week >= from_week
+        )
+        if teacher_name and teacher_name != "Giáo viên" and teacher_name != "Tất cả":
+            del_q = del_q.filter(TKBSlotModel.teacher_name == teacher_name)
+        del_q.delete()
         db.commit()
 
     saved_slots = []
     for slot_data in parsed_slots:
         slot = TKBSlotModel(
+            user_id=user_id,
             teacher_name=slot_data.get("teacher_name", teacher_name),
             class_name=slot_data.get("class_name", ""),
             subject=slot_data.get("subject", "Toán"),
             day_of_week=slot_data.get("day_of_week", 2),
             period=slot_data.get("period", 1),
             session=slot_data.get("session", "Sáng"),
-            semester=slot_data.get("semester", "Học kỳ 1")
+            semester=slot_data.get("semester", "Học kỳ 1"),
+            from_week=from_week,
+            to_week=to_week
         )
         db.add(slot)
         saved_slots.append(slot)
@@ -57,8 +69,8 @@ async def upload_tkb_file(
     for s in saved_slots:
         db.refresh(s)
 
-    teachers = [t[0] for t in db.query(distinct(TKBSlotModel.teacher_name)).all() if t[0]]
-    classes = [c[0] for c in db.query(distinct(TKBSlotModel.class_name)).all() if c[0]]
+    teachers = [t[0] for t in db.query(distinct(TKBSlotModel.teacher_name)).filter(TKBSlotModel.user_id == user_id).all() if t[0]]
+    classes = [c[0] for c in db.query(distinct(TKBSlotModel.class_name)).filter(TKBSlotModel.user_id == user_id).all() if c[0]]
 
     return TKBUploadResponse(
         total_slots=len(saved_slots),
@@ -72,32 +84,70 @@ async def list_tkb(
     teacher_name: Optional[str] = Query(None),
     class_name: Optional[str] = Query(None),
     day_of_week: Optional[int] = Query(None),
+    week_number: Optional[int] = Query(None),
+    from_week: Optional[int] = Query(None),
+    to_week: Optional[int] = Query(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    q = db.query(TKBSlotModel)
+    q = db.query(TKBSlotModel).filter(TKBSlotModel.user_id == user_id)
     if teacher_name and teacher_name != "Tất cả":
         q = q.filter(TKBSlotModel.teacher_name == teacher_name)
     if class_name:
         q = q.filter(TKBSlotModel.class_name == class_name)
     if day_of_week:
         q = q.filter(TKBSlotModel.day_of_week == day_of_week)
-    return q.order_by(TKBSlotModel.day_of_week.asc(), TKBSlotModel.period.asc()).all()
+    if week_number is not None:
+        q = q.filter(TKBSlotModel.from_week <= week_number, TKBSlotModel.to_week >= week_number)
+    if from_week is not None and to_week is not None:
+        q = q.filter(TKBSlotModel.from_week == from_week, TKBSlotModel.to_week == to_week)
+    return q.order_by(TKBSlotModel.from_week.asc(), TKBSlotModel.day_of_week.asc(), TKBSlotModel.period.asc()).all()
+
+@router.get("/ranges")
+async def get_tkb_week_ranges(
+    teacher_name: Optional[str] = Query(None),
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """Returns distinct week ranges present in TKB slots for current user"""
+    q = db.query(TKBSlotModel.from_week, TKBSlotModel.to_week).filter(TKBSlotModel.user_id == user_id)
+    if teacher_name and teacher_name != "Tất cả":
+        q = q.filter(TKBSlotModel.teacher_name == teacher_name)
+    results = q.distinct().order_by(TKBSlotModel.from_week.asc()).all()
+    ranges = []
+    for fw, tw in results:
+        fw_val = fw or 1
+        tw_val = tw or 35
+        ranges.append({
+            "from_week": fw_val,
+            "to_week": tw_val,
+            "label": f"Tuần {fw_val} - {tw_val}" if fw_val != tw_val else f"Tuần {fw_val}"
+        })
+    return ranges
 
 @router.get("/teachers", response_model=List[str])
-async def get_teachers(db: Session = Depends(get_db)):
-    results = db.query(distinct(TKBSlotModel.teacher_name)).all()
+async def get_teachers(
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    results = db.query(distinct(TKBSlotModel.teacher_name)).filter(TKBSlotModel.user_id == user_id).all()
     return [r[0] for r in results if r[0]]
 
 @router.get("/classes", response_model=List[str])
-async def get_classes(db: Session = Depends(get_db)):
-    results = db.query(distinct(TKBSlotModel.class_name)).all()
+async def get_classes(
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    results = db.query(distinct(TKBSlotModel.class_name)).filter(TKBSlotModel.user_id == user_id).all()
     return [r[0] for r in results if r[0]]
 
-from schemas.tkb import TKBSlotResponse, TKBSlotCreate, TKBSlotUpdate, TKBUploadResponse
-
 @router.post("/", response_model=TKBSlotResponse)
-async def create_tkb_slot(slot_in: TKBSlotCreate, db: Session = Depends(get_db)):
-    slot = TKBSlotModel(**slot_in.model_dump())
+async def create_tkb_slot(
+    slot_in: TKBSlotCreate,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    slot = TKBSlotModel(**slot_in.model_dump(), user_id=user_id)
     db.add(slot)
     db.commit()
     db.refresh(slot)
@@ -107,9 +157,10 @@ async def create_tkb_slot(slot_in: TKBSlotCreate, db: Session = Depends(get_db))
 async def update_tkb_slot(
     slot_id: int,
     slot_in: TKBSlotUpdate,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    slot = db.query(TKBSlotModel).filter(TKBSlotModel.id == slot_id).first()
+    slot = db.query(TKBSlotModel).filter(TKBSlotModel.id == slot_id, TKBSlotModel.user_id == user_id).first()
     if not slot:
         raise HTTPException(status_code=404, detail="Tiết dạy không tồn tại")
     
@@ -123,17 +174,29 @@ async def update_tkb_slot(
     return slot
 
 @router.delete("/clear")
-async def clear_tkb(teacher_name: Optional[str] = None, db: Session = Depends(get_db)):
-    q = db.query(TKBSlotModel)
+async def clear_tkb(
+    teacher_name: Optional[str] = None,
+    from_week: Optional[int] = Query(None),
+    to_week: Optional[int] = Query(None),
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    q = db.query(TKBSlotModel).filter(TKBSlotModel.user_id == user_id)
     if teacher_name and teacher_name != "Tất cả":
         q = q.filter(TKBSlotModel.teacher_name == teacher_name)
+    if from_week is not None and to_week is not None:
+        q = q.filter(TKBSlotModel.from_week == from_week, TKBSlotModel.to_week == to_week)
     count = q.delete()
     db.commit()
     return {"status": "success", "message": f"Đã xóa {count} tiết TKB."}
 
 @router.delete("/{slot_id}")
-async def delete_tkb_slot(slot_id: int, db: Session = Depends(get_db)):
-    slot = db.query(TKBSlotModel).filter(TKBSlotModel.id == slot_id).first()
+async def delete_tkb_slot(
+    slot_id: int,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    slot = db.query(TKBSlotModel).filter(TKBSlotModel.id == slot_id, TKBSlotModel.user_id == user_id).first()
     if not slot:
         raise HTTPException(status_code=404, detail="Tiết dạy không tồn tại")
     db.delete(slot)
@@ -141,11 +204,14 @@ async def delete_tkb_slot(slot_id: int, db: Session = Depends(get_db)):
     return {"status": "success", "message": "Đã xóa tiết dạy khỏi TKB thành công."}
 
 @router.get("/stats")
-async def get_tkb_stats(db: Session = Depends(get_db)):
-    total = db.query(TKBSlotModel).count()
-    teachers = [t[0] for t in db.query(distinct(TKBSlotModel.teacher_name)).all() if t[0]]
-    classes = [c[0] for c in db.query(distinct(TKBSlotModel.class_name)).all() if c[0]]
-    subjects = [s[0] for s in db.query(distinct(TKBSlotModel.subject)).all() if s[0]]
+async def get_tkb_stats(
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    total = db.query(TKBSlotModel).filter(TKBSlotModel.user_id == user_id).count()
+    teachers = [t[0] for t in db.query(distinct(TKBSlotModel.teacher_name)).filter(TKBSlotModel.user_id == user_id).all() if t[0]]
+    classes = [c[0] for c in db.query(distinct(TKBSlotModel.class_name)).filter(TKBSlotModel.user_id == user_id).all() if c[0]]
+    subjects = [s[0] for s in db.query(distinct(TKBSlotModel.subject)).filter(TKBSlotModel.user_id == user_id).all() if s[0]]
     return {
         "total_slots": total,
         "total_teachers": len(teachers),
@@ -158,6 +224,10 @@ async def get_tkb_stats(db: Session = Depends(get_db)):
 @router.get("/export/excel")
 async def export_tkb_excel(
     teacher_name: Optional[str] = Query("Giáo viên"),
+    week_number: Optional[int] = Query(None),
+    from_week: Optional[int] = Query(None),
+    to_week: Optional[int] = Query(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     import openpyxl
@@ -165,9 +235,13 @@ async def export_tkb_excel(
     from fastapi.responses import Response
     import io, urllib.parse
 
-    q = db.query(TKBSlotModel)
+    q = db.query(TKBSlotModel).filter(TKBSlotModel.user_id == user_id)
     if teacher_name and teacher_name != "Tất cả":
         q = q.filter(TKBSlotModel.teacher_name == teacher_name)
+    if week_number is not None:
+        q = q.filter(TKBSlotModel.from_week <= week_number, TKBSlotModel.to_week >= week_number)
+    elif from_week is not None and to_week is not None:
+        q = q.filter(TKBSlotModel.from_week == from_week, TKBSlotModel.to_week == to_week)
     slots = q.all()
 
     # Create slot lookup matrix [period][day]
@@ -179,9 +253,10 @@ async def export_tkb_excel(
     ws = wb.active
     ws.title = "TKB"
 
+    week_sub = f" - Tuần {week_number}" if week_number else (f" - Tuần {from_week}→{to_week}" if from_week and to_week else "")
     # Title
     ws.merge_cells("A1:G1")
-    ws["A1"] = f"THỜI KHÓA BIỂU - {teacher_name or 'TẤT CẢ GIÁO VIÊN'}"
+    ws["A1"] = f"THỜI KHÓA BIỂU{week_sub} - {teacher_name or 'TẤT CẢ GIÁO VIÊN'}"
     ws["A1"].font = Font(name="Times New Roman", size=14, bold=True, color="1F4E78")
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 30
@@ -260,11 +335,14 @@ from pydantic import BaseModel
 class TKBPasteRequest(BaseModel):
     text: str
     teacher_name: Optional[str] = "Giáo viên"
+    from_week: Optional[int] = 1
+    to_week: Optional[int] = 35
     overwrite: Optional[bool] = True
 
 @router.post("/paste", response_model=TKBUploadResponse)
 async def paste_tkb_text(
     req: TKBPasteRequest,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     from services.tkb_parser import parse_tkb_text
@@ -272,28 +350,37 @@ async def paste_tkb_text(
         raise HTTPException(status_code=400, detail="Nội dung văn bản dán không được để trống")
 
     teacher_name = req.teacher_name or "Giáo viên"
-    parsed_slots = parse_tkb_text(req.text, default_teacher=teacher_name)
+    from_week = req.from_week or 1
+    to_week = req.to_week or 35
+    parsed_slots = await run_in_threadpool(parse_tkb_text, req.text, default_teacher=teacher_name)
 
     if not parsed_slots:
         raise HTTPException(status_code=400, detail="Không nhận diện được tiết dạy từ nội dung đã dán.")
 
     if req.overwrite:
-        if teacher_name and teacher_name != "Giáo viên":
-            db.query(TKBSlotModel).filter(TKBSlotModel.teacher_name == teacher_name).delete()
-        else:
-            db.query(TKBSlotModel).delete()
+        del_q = db.query(TKBSlotModel).filter(
+            TKBSlotModel.user_id == user_id,
+            TKBSlotModel.from_week <= to_week,
+            TKBSlotModel.to_week >= from_week
+        )
+        if teacher_name and teacher_name != "Giáo viên" and teacher_name != "Tất cả":
+            del_q = del_q.filter(TKBSlotModel.teacher_name == teacher_name)
+        del_q.delete()
         db.commit()
 
     saved_slots = []
     for slot_data in parsed_slots:
         slot = TKBSlotModel(
+            user_id=user_id,
             teacher_name=slot_data.get("teacher_name", teacher_name),
             class_name=slot_data.get("class_name", ""),
             subject=slot_data.get("subject", "Toán"),
             day_of_week=slot_data.get("day_of_week", 2),
             period=slot_data.get("period", 1),
             session=slot_data.get("session", "Sáng"),
-            semester=slot_data.get("semester", "Học kỳ 1")
+            semester=slot_data.get("semester", "Học kỳ 1"),
+            from_week=from_week,
+            to_week=to_week
         )
         db.add(slot)
         saved_slots.append(slot)
@@ -302,8 +389,8 @@ async def paste_tkb_text(
     for s in saved_slots:
         db.refresh(s)
 
-    teachers = [t[0] for t in db.query(distinct(TKBSlotModel.teacher_name)).all() if t[0]]
-    classes = [c[0] for c in db.query(distinct(TKBSlotModel.class_name)).all() if c[0]]
+    teachers = [t[0] for t in db.query(distinct(TKBSlotModel.teacher_name)).filter(TKBSlotModel.user_id == user_id).all() if t[0]]
+    classes = [c[0] for c in db.query(distinct(TKBSlotModel.class_name)).filter(TKBSlotModel.user_id == user_id).all() if c[0]]
 
     return TKBUploadResponse(
         total_slots=len(saved_slots),
@@ -316,9 +403,12 @@ async def paste_tkb_text(
 async def upload_tkb_image(
     file: UploadFile = File(...),
     teacher_name: str = Form("Giáo viên"),
+    from_week: int = Form(1),
+    to_week: int = Form(35),
     overwrite: bool = Form(True),
     api_key: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     """
@@ -326,7 +416,7 @@ async def upload_tkb_image(
     """
     from services.gemini_service import set_custom_gemini_key
     if api_key and api_key.strip():
-        set_custom_gemini_key(api_key.strip())
+        await run_in_threadpool(set_custom_gemini_key, api_key.strip())
 
     import json
     import re
@@ -360,7 +450,8 @@ HÃY TRẢ VỀ DUY NHẤT MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần tú
 ]
 """
     try:
-        raw_result = generate_with_gemini_vision(
+        raw_result = await run_in_threadpool(
+            generate_with_gemini_vision,
             prompt=prompt,
             image_bytes=image_bytes,
             mime_type=file.content_type or "image/png",
@@ -394,10 +485,14 @@ HÃY TRẢ VỀ DUY NHẤT MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần tú
         raise HTTPException(status_code=400, detail="Không tìm thấy dữ liệu tiết học trong ảnh TKB.")
 
     if overwrite:
-        if teacher_name and teacher_name != "Giáo viên":
-            db.query(TKBSlotModel).filter(TKBSlotModel.teacher_name == teacher_name).delete()
-        else:
-            db.query(TKBSlotModel).delete()
+        del_q = db.query(TKBSlotModel).filter(
+            TKBSlotModel.user_id == user_id,
+            TKBSlotModel.from_week <= to_week,
+            TKBSlotModel.to_week >= from_week
+        )
+        if teacher_name and teacher_name != "Giáo viên" and teacher_name != "Tất cả":
+            del_q = del_q.filter(TKBSlotModel.teacher_name == teacher_name)
+        del_q.delete()
         db.commit()
 
     saved_slots = []
@@ -407,13 +502,16 @@ HÃY TRẢ VỀ DUY NHẤT MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần tú
         sess_val = slot_data.get("session") or ("Sáng" if period_val <= 5 else "Chiều")
         
         slot = TKBSlotModel(
+            user_id=user_id,
             teacher_name=teacher_name,
             class_name=str(slot_data.get("class_name") or ""),
             subject=str(slot_data.get("subject") or "Toán"),
             day_of_week=day_val,
             period=period_val,
             session=sess_val,
-            semester="Học kỳ 1"
+            semester="Học kỳ 1",
+            from_week=from_week,
+            to_week=to_week
         )
         db.add(slot)
         saved_slots.append(slot)
@@ -422,8 +520,8 @@ HÃY TRẢ VỀ DUY NHẤT MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần tú
     for s in saved_slots:
         db.refresh(s)
 
-    teachers = [t[0] for t in db.query(distinct(TKBSlotModel.teacher_name)).all() if t[0]]
-    classes = [c[0] for c in db.query(distinct(TKBSlotModel.class_name)).all() if c[0]]
+    teachers = [t[0] for t in db.query(distinct(TKBSlotModel.teacher_name)).filter(TKBSlotModel.user_id == user_id).all() if t[0]]
+    classes = [c[0] for c in db.query(distinct(TKBSlotModel.class_name)).filter(TKBSlotModel.user_id == user_id).all() if c[0]]
 
     return TKBUploadResponse(
         total_slots=len(saved_slots),

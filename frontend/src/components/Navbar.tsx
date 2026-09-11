@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "./AuthProvider";
-import { BackendStatusBadge } from "./BackendWarmup";
 import LoginModal from "@/components/auth/LoginModal";
 import {
   DropdownMenu,
@@ -147,9 +146,6 @@ export default function Navbar({
               <span className="hidden sm:inline">Gemini Key</span>
             </Button>
           )}
-
-          {/* Server Live Status Badge & Wakeup */}
-          <BackendStatusBadge />
 
           {/* Clock badge */}
           {currentTime && (

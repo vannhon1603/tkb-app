@@ -19,7 +19,8 @@ class SettingModel(Base):
     __tablename__ = "settings"
 
     id = Column(Integer, primary_key=True, index=True)
-    key = Column(String(100), unique=True, index=True, nullable=False)
+    user_id = Column(String(100), default="default_user", index=True)
+    key = Column(String(100), index=True, nullable=False)
     value = Column(Text, nullable=False)
     description = Column(String(255), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -28,6 +29,7 @@ class PPCTModel(Base):
     __tablename__ = "ppct_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(100), default="default_user", index=True)
     grade = Column(String(50), index=True, nullable=False)        # Khối 10, Khối 11, Khối 12...
     subject = Column(String(100), index=True, nullable=False)     # Toán, Ngữ văn, Vật lí...
     week = Column(Integer, index=True, default=1)                 # Tuần 1..35
@@ -41,6 +43,7 @@ class TKBSlotModel(Base):
     __tablename__ = "tkb_slots"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(100), default="default_user", index=True)
     teacher_name = Column(String(150), index=True, default="Giáo viên")
     class_name = Column(String(50), index=True, nullable=False)   # 10A1, 11B2...
     subject = Column(String(100), index=True, nullable=False)
@@ -49,12 +52,15 @@ class TKBSlotModel(Base):
     session = Column(String(20), default="Sáng")
     room = Column(String(50), nullable=True)
     semester = Column(String(50), default="Học kỳ 1")
+    from_week = Column(Integer, default=1, index=True)           # Áp dụng từ Tuần (mặc định 1)
+    to_week = Column(Integer, default=35, index=True)            # Áp dụng đến Tuần (mặc định 35)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class SoBaoGiangEntryModel(Base):
     __tablename__ = "so_bao_giang_entries"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(100), default="default_user", index=True)
     teacher_name = Column(String(150), index=True, nullable=False)
     week_number = Column(Integer, index=True, nullable=False)
     start_date = Column(String(20), index=True, nullable=False)   # YYYY-MM-DD
@@ -76,6 +82,7 @@ class StudentModel(Base):
     __tablename__ = "students"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(100), default="default_user", index=True)
     class_name = Column(String(50), index=True, nullable=False)
     name = Column(String(150), nullable=False)
     gender = Column(String(10), default="Nam")
@@ -86,6 +93,7 @@ class AttendanceModel(Base):
     __tablename__ = "attendance"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(100), default="default_user", index=True)
     student_id = Column(Integer, index=True, nullable=False)
     class_name = Column(String(50), index=True, nullable=False)
     date = Column(String(20), index=True, nullable=False)         # YYYY-MM-DD
@@ -97,6 +105,7 @@ class BonusPointModel(Base):
     __tablename__ = "bonus_points"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(100), default="default_user", index=True)
     student_id = Column(Integer, index=True, nullable=False)
     class_name = Column(String(50), index=True, nullable=False)
     points = Column(Integer, nullable=False)                      # +1, -1, +2...
@@ -108,6 +117,7 @@ class TaskModel(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(100), default="default_user", index=True)
     title = Column(String(255), nullable=False)
     due_date = Column(String(20), nullable=True)                  # YYYY-MM-DD
     priority = Column(String(50), default="Trung bình")           # "Cao", "Trung bình", "Thấp"

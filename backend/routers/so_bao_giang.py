@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -22,26 +23,29 @@ from schemas.so_bao_giang import (
     ProgressStatsResponse
 )
 from services.so_bao_giang_service import SoBaoGiangService
+from routers.auth import get_current_user_id
 
 router = APIRouter(prefix="/so-bao-giang", tags=["Sổ Báo Giảng Tự Động"])
 
 @router.post("/generate-all", response_model=GenerateAllWeeksResponse)
 async def generate_all_weeks(
     req: GenerateAllWeeksRequest,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     """
-    Automatically generates Sổ Báo Giảng for all 35 weeks (or custom total_weeks) of the school year.
-    Advances PPCT lessons seamlessly across weeks.
+    Automatically generates Sổ Báo Giảng for all 35 weeks for the authenticated user.
     """
-    result = SoBaoGiangService.generate_all_weeks(
+    result = await run_in_threadpool(
+        SoBaoGiangService.generate_all_weeks,
         db=db,
         semester_start_date_str=req.semester_start_date,
         total_weeks=req.total_weeks or 35,
         teacher_name=req.teacher_name,
         semester=req.semester or "Học kỳ 1",
         overwrite=req.overwrite if req.overwrite is not None else True,
-        preserve_taught=req.preserve_taught if req.preserve_taught is not None else True
+        preserve_taught=req.preserve_taught if req.preserve_taught is not None else True,
+        user_id=user_id
     )
 
     if result.get("total_entries", 0) == 0:
@@ -60,12 +64,13 @@ async def generate_all_weeks(
 @router.post("/batch-toggle-taught", response_model=BatchToggleTaughtResponse)
 async def batch_toggle_taught(
     req: BatchToggleTaughtRequest,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     """
-    Batch update taught status for an entire week or selected entry IDs
+    Batch update taught status for an entire week or selected entry IDs for this user
     """
-    q = db.query(SoBaoGiangEntryModel)
+    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.user_id == user_id)
     if req.entry_ids and len(req.entry_ids) > 0:
         q = q.filter(SoBaoGiangEntryModel.id.in_(req.entry_ids))
     elif req.week_number is not None:
@@ -97,15 +102,18 @@ async def batch_toggle_taught(
 @router.post("/generate", response_model=SoBaoGiangWeekResponse)
 async def generate_so_bao_giang(
     req: GenerateSoBaoGiangRequest,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    entries = SoBaoGiangService.generate_for_week(
+    entries = await run_in_threadpool(
+        SoBaoGiangService.generate_for_week,
         db=db,
         week_number=req.week_number,
         start_date_str=req.start_date,
         teacher_name=req.teacher_name,
         semester=req.semester or "Học kỳ 1",
-        overwrite=req.overwrite if req.overwrite is not None else True
+        overwrite=req.overwrite if req.overwrite is not None else True,
+        user_id=user_id
     )
 
     if not entries:
@@ -127,9 +135,10 @@ async def get_so_bao_giang(
     week_number: Optional[int] = Query(None),
     start_date: Optional[str] = Query(None),
     teacher_name: Optional[str] = Query(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    q = db.query(SoBaoGiangEntryModel)
+    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.user_id == user_id)
     if week_number:
         q = q.filter(SoBaoGiangEntryModel.week_number == week_number)
     if start_date:
@@ -142,9 +151,10 @@ async def get_so_bao_giang(
 async def update_entry(
     entry_id: int,
     req: SoBaoGiangEntryUpdate,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    entry = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.id == entry_id).first()
+    entry = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.id == entry_id, SoBaoGiangEntryModel.user_id == user_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Bản ghi không tồn tại")
     
@@ -159,9 +169,10 @@ async def update_entry(
 @router.post("/", response_model=SoBaoGiangEntryResponse)
 async def create_entry(
     req: SoBaoGiangEntryCreate,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    entry = SoBaoGiangEntryModel(**req.model_dump())
+    entry = SoBaoGiangEntryModel(**req.model_dump(), user_id=user_id)
     entry.is_custom = True
     db.add(entry)
     db.commit()
@@ -172,9 +183,10 @@ async def create_entry(
 async def toggle_taught(
     entry_id: int,
     req: Optional[ToggleTaughtRequest] = None,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    entry = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.id == entry_id).first()
+    entry = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.id == entry_id, SoBaoGiangEntryModel.user_id == user_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Bản ghi không tồn tại")
     
@@ -198,9 +210,10 @@ async def toggle_taught(
 async def get_progress_stats(
     week_number: Optional[int] = Query(None),
     teacher_name: Optional[str] = Query(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    q = db.query(SoBaoGiangEntryModel)
+    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.user_id == user_id)
     if week_number:
         q = q.filter(SoBaoGiangEntryModel.week_number == week_number)
     if teacher_name and teacher_name != "Tất cả":
@@ -263,9 +276,10 @@ async def get_progress_stats(
 async def clear_week_entries(
     week_number: int,
     teacher_name: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.week_number == week_number)
+    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.user_id == user_id, SoBaoGiangEntryModel.week_number == week_number)
     if teacher_name and teacher_name != "Tất cả":
         q = q.filter(SoBaoGiangEntryModel.teacher_name == teacher_name)
     count = q.delete()
@@ -273,8 +287,12 @@ async def clear_week_entries(
     return {"status": "success", "message": f"Đã xóa {count} tiết trong Tuần {week_number}."}
 
 @router.delete("/{entry_id}")
-async def delete_entry(entry_id: int, db: Session = Depends(get_db)):
-    entry = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.id == entry_id).first()
+async def delete_entry(
+    entry_id: int,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    entry = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.id == entry_id, SoBaoGiangEntryModel.user_id == user_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Bản ghi không tồn tại")
     db.delete(entry)
@@ -286,9 +304,10 @@ async def export_excel(
     week_number: int = Query(1),
     start_date: Optional[str] = Query(None),
     teacher_name: str = Query("Giáo viên"),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.week_number == week_number)
+    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.user_id == user_id, SoBaoGiangEntryModel.week_number == week_number)
     if teacher_name and teacher_name != "Tất cả":
         q = q.filter(SoBaoGiangEntryModel.teacher_name == teacher_name)
     entries = q.order_by(SoBaoGiangEntryModel.day_of_week.asc(), SoBaoGiangEntryModel.period.asc()).all()
@@ -296,14 +315,16 @@ async def export_excel(
     if not entries:
         # Try generating automatically if not yet exists
         if start_date:
-            entries = SoBaoGiangService.generate_for_week(
+            entries = await run_in_threadpool(
+                SoBaoGiangService.generate_for_week,
                 db=db,
                 week_number=week_number,
                 start_date_str=start_date,
-                teacher_name=teacher_name
+                teacher_name=teacher_name,
+                user_id=user_id
             )
 
-    excel_bytes = SoBaoGiangService.export_excel(entries, week_number=week_number, teacher_name=teacher_name)
+    excel_bytes = await run_in_threadpool(SoBaoGiangService.export_excel, entries, week_number=week_number, teacher_name=teacher_name)
     filename = f"So_Bao_Giang_Tuan_{week_number}_{teacher_name.replace(' ', '_')}.xlsx"
     encoded_filename = urllib.parse.quote(filename)
 
@@ -320,22 +341,25 @@ async def export_word(
     week_number: int = Query(1),
     start_date: Optional[str] = Query(None),
     teacher_name: str = Query("Giáo viên"),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.week_number == week_number)
+    q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.user_id == user_id, SoBaoGiangEntryModel.week_number == week_number)
     if teacher_name and teacher_name != "Tất cả":
         q = q.filter(SoBaoGiangEntryModel.teacher_name == teacher_name)
     entries = q.order_by(SoBaoGiangEntryModel.day_of_week.asc(), SoBaoGiangEntryModel.period.asc()).all()
 
     if not entries and start_date:
-        entries = SoBaoGiangService.generate_for_week(
+        entries = await run_in_threadpool(
+            SoBaoGiangService.generate_for_week,
             db=db,
             week_number=week_number,
             start_date_str=start_date,
-            teacher_name=teacher_name
+            teacher_name=teacher_name,
+            user_id=user_id
         )
 
-    word_bytes = SoBaoGiangService.export_word(entries, week_number=week_number, teacher_name=teacher_name)
+    word_bytes = await run_in_threadpool(SoBaoGiangService.export_word, entries, week_number=week_number, teacher_name=teacher_name)
     filename = f"So_Bao_Giang_Tuan_{week_number}_{teacher_name.replace(' ', '_')}.docx"
     encoded_filename = urllib.parse.quote(filename)
 

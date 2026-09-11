@@ -163,9 +163,10 @@ class SoBaoGiangService:
         teacher_name: Optional[str] = None,
         semester: str = "Học kỳ 1",
         overwrite: bool = True,
-        preserve_taught: bool = True
+        preserve_taught: bool = True,
+        user_id: str = "default_user"
     ) -> List[SoBaoGiangEntryModel]:
-        """Automatically generate Sổ Báo Giảng entries for the given week from TKB and PPCT"""
+        """Automatically generate Sổ Báo Giảng entries for the given week from user's TKB and PPCT"""
         # Parse Monday start date
         try:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
@@ -175,19 +176,24 @@ class SoBaoGiangService:
             except Exception:
                 start_date = datetime.utcnow()
 
-        # Query TKB slots
-        q = db.query(TKBSlotModel)
+        # Query all TKB slots for teacher to calculate past offsets
+        q_all = db.query(TKBSlotModel).filter(TKBSlotModel.user_id == user_id)
         if teacher_name and teacher_name.strip() and teacher_name != "Tất cả":
-            q = q.filter(TKBSlotModel.teacher_name == teacher_name.strip())
-        
-        slots = q.order_by(TKBSlotModel.day_of_week.asc(), TKBSlotModel.period.asc()).all()
-        if not slots:
+            q_all = q_all.filter(TKBSlotModel.teacher_name == teacher_name.strip())
+        all_teacher_slots = q_all.order_by(TKBSlotModel.day_of_week.asc(), TKBSlotModel.period.asc()).all()
+        if not all_teacher_slots:
             return []
+
+        # Find active TKB slots for the target week_number
+        slots = [s for s in all_teacher_slots if (s.from_week or 1) <= week_number <= (s.to_week or 35)]
+        if not slots:
+            slots = all_teacher_slots
 
         # Map existing taught status if preserve_taught is True
         taught_map = {}
         if preserve_taught:
             existing = db.query(SoBaoGiangEntryModel).filter(
+                SoBaoGiangEntryModel.user_id == user_id,
                 SoBaoGiangEntryModel.week_number == week_number
             )
             if teacher_name and teacher_name.strip() and teacher_name != "Tất cả":
@@ -196,9 +202,10 @@ class SoBaoGiangService:
                 if e.is_taught:
                     taught_map[(e.day_of_week, e.period, e.class_name)] = (e.is_taught, e.taught_at, e.status)
 
-        # If overwrite, remove existing non-custom entries for this week & teacher
+        # If overwrite, remove existing non-custom entries for this week & teacher & user
         if overwrite:
             del_q = db.query(SoBaoGiangEntryModel).filter(
+                SoBaoGiangEntryModel.user_id == user_id,
                 SoBaoGiangEntryModel.week_number == week_number,
                 SoBaoGiangEntryModel.start_date == start_date.strftime("%Y-%m-%d")
             )
@@ -207,8 +214,8 @@ class SoBaoGiangService:
             del_q.delete()
             db.commit()
 
-        # Query PPCT items
-        ppct_items = db.query(PPCTModel).order_by(PPCTModel.lesson_number.asc()).all()
+        # Query PPCT items for user
+        ppct_items = db.query(PPCTModel).filter(PPCTModel.user_id == user_id).order_by(PPCTModel.lesson_number.asc()).all()
         
         # Group PPCT by (grade, subject)
         ppct_map: Dict[tuple, List[PPCTModel]] = {}
@@ -218,17 +225,16 @@ class SoBaoGiangService:
                 ppct_map[key] = []
             ppct_map[key].append(item)
 
-        # Count slots per (class_name, subject_group) to determine lesson offset for earlier weeks
-        class_subj_slots_per_week: Dict[tuple, int] = {}
-        for s in slots:
-            sg = normalize_subject_group(s.subject)
-            k = (s.class_name.strip(), sg)
-            class_subj_slots_per_week[k] = class_subj_slots_per_week.get(k, 0) + 1
-
-        # Track sequential lesson pointer for each (class_name, subject_group)
+        # Accurately compute cumulative lessons prior to week_number across changing TKBs
         class_subj_lesson_counters: Dict[tuple, int] = {}
-        for k, count in class_subj_slots_per_week.items():
-            class_subj_lesson_counters[k] = (week_number - 1) * count
+        for w in range(1, week_number):
+            w_slots = [s for s in all_teacher_slots if (s.from_week or 1) <= w <= (s.to_week or 35)]
+            if not w_slots:
+                w_slots = all_teacher_slots
+            for s in w_slots:
+                sg = normalize_subject_group(s.subject)
+                k = (s.class_name.strip(), sg)
+                class_subj_lesson_counters[k] = class_subj_lesson_counters.get(k, 0) + 1
 
         generated_entries = []
         eff_teacher = teacher_name if teacher_name and teacher_name != "Tất cả" else "Giáo viên bộ môn"
@@ -274,6 +280,7 @@ class SoBaoGiangService:
             status_val = prev_info[2] if prev_info else "pending"
 
             entry = SoBaoGiangEntryModel(
+                user_id=user_id,
                 teacher_name=s.teacher_name or eff_teacher,
                 week_number=week_number,
                 start_date=start_date.strftime("%Y-%m-%d"),
@@ -306,11 +313,13 @@ class SoBaoGiangService:
         teacher_name: Optional[str] = None,
         semester: str = "Học kỳ 1",
         overwrite: bool = True,
-        preserve_taught: bool = True
+        preserve_taught: bool = True,
+        user_id: str = "default_user"
     ) -> Dict[str, Any]:
         """
-        Automatically generate Sổ Báo Giảng entries for ALL weeks (Tuần 1 -> total_weeks, default 35).
-        Advances lesson numbers seamlessly from PPCT across the entire school year.
+        Automatically generate Sổ Báo Giảng entries for ALL weeks for the given user.
+        Accurately respects variable TKB schedules for different week intervals.
+        Advances lesson numbers seamlessly from user's PPCT across the entire school year.
         Preserves already marked 'is_taught' flags if preserve_taught=True.
         """
         # Parse Monday start date of Week 1
@@ -322,13 +331,13 @@ class SoBaoGiangService:
             except Exception:
                 base_monday = datetime.utcnow()
 
-        # Query TKB slots
-        q = db.query(TKBSlotModel)
+        # Query all TKB slots for the teacher & user
+        q = db.query(TKBSlotModel).filter(TKBSlotModel.user_id == user_id)
         if teacher_name and teacher_name.strip() and teacher_name != "Tất cả":
             q = q.filter(TKBSlotModel.teacher_name == teacher_name.strip())
         
-        slots = q.order_by(TKBSlotModel.day_of_week.asc(), TKBSlotModel.period.asc()).all()
-        if not slots:
+        all_teacher_slots = q.order_by(TKBSlotModel.day_of_week.asc(), TKBSlotModel.period.asc()).all()
+        if not all_teacher_slots:
             return {
                 "total_weeks": 0,
                 "total_entries": 0,
@@ -339,7 +348,7 @@ class SoBaoGiangService:
         # Collect existing taught status if preserving
         taught_map = {}
         if preserve_taught:
-            existing = db.query(SoBaoGiangEntryModel)
+            existing = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.user_id == user_id)
             if teacher_name and teacher_name.strip() and teacher_name != "Tất cả":
                 existing = existing.filter(SoBaoGiangEntryModel.teacher_name == teacher_name.strip())
             for e in existing.all():
@@ -348,14 +357,14 @@ class SoBaoGiangService:
 
         # Clear existing entries if overwrite
         if overwrite:
-            del_q = db.query(SoBaoGiangEntryModel)
+            del_q = db.query(SoBaoGiangEntryModel).filter(SoBaoGiangEntryModel.user_id == user_id)
             if teacher_name and teacher_name.strip() and teacher_name != "Tất cả":
                 del_q = del_q.filter(SoBaoGiangEntryModel.teacher_name == teacher_name.strip())
             del_q.delete()
             db.commit()
 
-        # Query PPCT items
-        ppct_items = db.query(PPCTModel).order_by(PPCTModel.lesson_number.asc()).all()
+        # Query PPCT items for user
+        ppct_items = db.query(PPCTModel).filter(PPCTModel.user_id == user_id).order_by(PPCTModel.lesson_number.asc()).all()
         
         # Group PPCT by (grade, subject)
         ppct_map: Dict[tuple, List[PPCTModel]] = {}
@@ -369,19 +378,18 @@ class SoBaoGiangService:
 
         # Continuous lesson counter for each (class_name, subject_group) across all 35 weeks
         class_subj_lesson_counters: Dict[tuple, int] = {}
-        for s in slots:
-            sg = normalize_subject_group(s.subject)
-            k = (s.class_name.strip(), sg)
-            if k not in class_subj_lesson_counters:
-                class_subj_lesson_counters[k] = 0
-
         all_generated_entries = []
 
         for week_num in range(1, total_weeks + 1):
             week_monday = base_monday + timedelta(days=(week_num - 1) * 7)
             week_monday_str = week_monday.strftime("%Y-%m-%d")
 
-            for s in slots:
+            # Active slots for week_num
+            active_slots = [s for s in all_teacher_slots if (s.from_week or 1) <= week_num <= (s.to_week or 35)]
+            if not active_slots:
+                active_slots = all_teacher_slots
+
+            for s in active_slots:
                 day_offset = s.day_of_week - 2
                 slot_date = week_monday + timedelta(days=day_offset)
                 date_formatted = slot_date.strftime("%d/%m/%Y")
@@ -422,6 +430,7 @@ class SoBaoGiangService:
                 status_val = prev_info[2] if prev_info else "pending"
 
                 entry = SoBaoGiangEntryModel(
+                    user_id=user_id,
                     teacher_name=s.teacher_name or eff_teacher,
                     week_number=week_num,
                     start_date=week_monday_str,
@@ -447,7 +456,7 @@ class SoBaoGiangService:
             "total_weeks": total_weeks,
             "total_entries": len(all_generated_entries),
             "teacher_name": eff_teacher,
-            "message": f"Đã tự động sinh thành công {len(all_generated_entries)} tiết dạy cho toàn bộ {total_weeks} tuần năm học!"
+            "message": f"Đã tự động sinh thành công {len(all_generated_entries)} tiết dạy cho toàn bộ {total_weeks} tuần năm học (tự động theo từng khoảng tuần TKB)!"
         }
 
 

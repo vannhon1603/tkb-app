@@ -100,22 +100,22 @@ export default function LoginModal({ open, onOpenChange }: LoginModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden border-[#d0d7de] dark:border-[#30363d] bg-white dark:bg-[#161b22] shadow-2xl">
         {/* Header decoration banner */}
-        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 text-white text-center relative overflow-hidden">
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-4 sm:p-6 text-white text-center relative overflow-hidden">
           <div className="absolute -right-8 -bottom-8 w-28 h-28 bg-white/10 rounded-full blur-xl" />
           <div className="absolute -left-8 -top-8 w-28 h-28 bg-emerald-300/20 rounded-full blur-xl" />
           
-          <div className="w-12 h-12 mx-auto mb-2.5 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
-            <Sparkles className="w-6 h-6 text-white" />
+          <div className="w-11 h-11 sm:w-12 sm:h-12 mx-auto mb-2 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
-          <DialogTitle className="text-lg font-bold tracking-tight text-white">
+          <DialogTitle className="text-base sm:text-lg font-bold tracking-tight text-white">
             Tài Khoản Giáo Viên
           </DialogTitle>
-          <DialogDescription className="text-xs text-white/80 mt-1 max-w-xs mx-auto">
+          <DialogDescription className="text-[11px] sm:text-xs text-white/80 mt-1 max-w-xs mx-auto">
             Đăng nhập với Google để đồng bộ thời khóa biểu và sổ báo giảng theo tài khoản của bạn.
           </DialogDescription>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* If user is already logged in, show profile card */}
           {user && (
             <div className="p-3.5 bg-slate-50 dark:bg-[#0d1117] rounded-xl border border-[#d0d7de] dark:border-[#30363d] space-y-3">

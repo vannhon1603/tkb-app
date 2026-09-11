@@ -66,6 +66,8 @@ export default function Sidebar({
           { id: "tkb", label: "Thời Khóa Biểu (TKB)", icon: Calendar },
         ],
       },
+      // Tạm thời ẩn nhóm "Học Sinh & Lớp Học" và "Kế Hoạch & Báo Cáo" theo yêu cầu
+      /*
       {
         label: "Học Sinh & Lớp Học",
         tabs: [
@@ -82,6 +84,7 @@ export default function Sidebar({
           { id: "analytics", label: "Thống Kê Tiến Độ", icon: BarChart3 },
         ],
       },
+      */
       {
         label: "Hệ Thống",
         tabs: [
@@ -98,7 +101,7 @@ export default function Sidebar({
       {/* Brand Header */}
       <div className="flex items-center justify-between px-3.5 py-3 border-b border-[#d0d7de] dark:border-[#30363d] min-h-[53px]">
         <div
-          onClick={() => onTabChange("dashboard")}
+          onClick={() => onTabChange("so-bao-giang")}
           className="flex items-center gap-2.5 cursor-pointer select-none overflow-hidden"
         >
           <div className="w-8 h-8 rounded-lg bg-emerald-600 dark:bg-emerald-500 text-white flex items-center justify-center font-bold text-base shadow-xs shrink-0">

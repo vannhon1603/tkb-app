@@ -19,10 +19,18 @@ import {
   Cpu,
   Layers,
   FileSpreadsheet,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiClient } from "@/lib/api";
 import { toast } from "react-hot-toast";
 
@@ -46,16 +54,36 @@ interface DatabaseInfo {
   };
 }
 
+interface ServerHealthInfo {
+  status: string;
+  service: string;
+  environment: string;
+  timestamp: string;
+  keep_alive?: {
+    enabled: boolean;
+    target_url: string;
+    interval_seconds: number;
+    total_pings: number;
+    successful_pings: number;
+    failed_pings: number;
+    last_ping_time: string | null;
+    uptime_seconds: number;
+    is_running: boolean;
+  };
+}
+
 export function SettingsTab() {
   const { theme, setTheme } = useTheme();
   const [apiUrl, setApiUrl] = useState("http://localhost:8000");
   const [geminiKey, setGeminiKey] = useState("");
+  const [selectedModel, setSelectedModel] = useState("gemini-2.0-flash-lite");
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [dbInfo, setDbInfo] = useState<DatabaseInfo | null>(null);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
   const [isVacuuming, setIsVacuuming] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [healthInfo, setHealthInfo] = useState<ServerHealthInfo | null>(null);
 
   const loadDbInfo = async () => {
     setIsLoadingDb(true);
@@ -69,28 +97,56 @@ export function SettingsTab() {
     }
   };
 
+  const loadHealthInfo = async () => {
+    try {
+      const data = await apiClient<ServerHealthInfo>("/api/health");
+      setHealthInfo(data);
+    } catch (e) {
+      console.error("Failed to load health info", e);
+    }
+  };
+
   useEffect(() => {
     loadDbInfo();
+    loadHealthInfo();
     if (typeof window !== "undefined") {
-      const savedKey = localStorage.getItem("custom_gemini_key") || localStorage.getItem("gemini_api_key") || "";
+      const savedKey =
+        localStorage.getItem("custom_gemini_key") ||
+        localStorage.getItem("gemini_api_key") ||
+        "";
       if (savedKey) setGeminiKey(savedKey);
+
+      const savedModel =
+        localStorage.getItem("gemini_selected_model") ||
+        localStorage.getItem("custom_gemini_model") ||
+        "gemini-2.0-flash-lite";
+      setSelectedModel(savedModel);
+
+      const savedUrl = localStorage.getItem("custom_api_url");
+      if (savedUrl) setApiUrl(savedUrl);
     }
   }, []);
+
+  const handleSaveAndSyncKey = async (key: string) => {
+    const trimmed = key.trim();
+    if (typeof window !== "undefined") {
+      localStorage.setItem("custom_gemini_key", trimmed);
+      localStorage.setItem("gemini_api_key", trimmed);
+    }
+    try {
+      await apiClient("/api/gemini/set-key", {
+        method: "POST",
+        body: JSON.stringify({ api_key: trimmed }),
+      });
+    } catch (e) {
+      console.error("Failed to sync gemini key:", e);
+    }
+  };
 
   const handleSaveSettings = async () => {
     localStorage.setItem("custom_api_url", apiUrl);
     if (geminiKey.trim()) {
-      const trimmed = geminiKey.trim();
-      localStorage.setItem("custom_gemini_key", trimmed);
-      localStorage.setItem("gemini_api_key", trimmed);
-      try {
-        await apiClient("/api/gemini/set-key", {
-          method: "POST",
-          body: JSON.stringify({ api_key: trimmed }),
-        });
-      } catch (e) {
-        console.error("Failed to sync gemini key:", e);
-      }
+      await handleSaveAndSyncKey(geminiKey);
     }
     toast.success("Đã lưu cấu hình hệ thống thành công!");
   };
@@ -132,7 +188,11 @@ export function SettingsTab() {
   };
 
   const handleResetDb = async () => {
-    if (!confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa sạch toàn bộ dữ liệu PPCT, TKB và Sổ Báo Giảng trong SQLite không?")) {
+    if (
+      !confirm(
+        "CẢNH BÁO: Bạn có chắc chắn muốn xóa sạch toàn bộ dữ liệu PPCT, TKB và Sổ Báo Giảng trong SQLite không?"
+      )
+    ) {
       return;
     }
     setIsResetting(true);
@@ -157,8 +217,113 @@ export function SettingsTab() {
           Cài Đặt Hệ Thống & Quản Lý Cơ Sở Dữ Liệu SQLite
         </h2>
         <p className="text-[11px] text-slate-500">
-          Quản lý lưu trữ SQLite, sao lưu file .db, tùy chỉnh giao diện và cấu hình kết nối AI
+          Quản lý lưu trữ SQLite, sao lưu file .db, cấu hình Gemini AI API Key, Model AI và kết nối Backend
         </p>
+      </div>
+
+      {/* Gemini API Key & Model Configuration Banner matching screenshot */}
+      <div className="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800/60 rounded-lg space-y-2 text-xs text-amber-900 dark:text-amber-200 shadow-2xs">
+        <div className="flex items-center justify-between font-bold">
+          <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+            Gemini API Key (Dùng để AI Vision & Multimodal trích xuất 100%):
+          </span>
+          <a
+            href="https://aistudio.google.com/app/apikey"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-normal"
+          >
+            Lấy Key miễn phí ↗
+          </a>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
+          <div className="sm:col-span-2 flex items-center gap-2">
+            <Input
+              type="password"
+              placeholder="Dán mã API Key (AIzaSy...) vào đây..."
+              value={geminiKey}
+              onChange={(e) => {
+                const val = e.target.value;
+                setGeminiKey(val);
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("custom_gemini_key", val);
+                  localStorage.setItem("gemini_api_key", val);
+                }
+              }}
+              onBlur={(e) => {
+                if (e.target.value.trim()) {
+                  handleSaveAndSyncKey(e.target.value);
+                }
+              }}
+              className="h-8 text-xs bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 flex-1 font-mono"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isTestingKey}
+              onClick={async () => {
+                if (!geminiKey.trim()) {
+                  toast.error("Vui lòng nhập API Key");
+                  return;
+                }
+                setIsTestingKey(true);
+                try {
+                  const trimmed = geminiKey.trim();
+                  await handleSaveAndSyncKey(trimmed);
+                  const res = await apiClient<{ success: boolean; message: string }>("/api/gemini/test", {
+                    method: "POST",
+                    body: JSON.stringify({ api_key: trimmed }),
+                  });
+                  if (res.success) {
+                    toast.success("✅ " + res.message);
+                  } else {
+                    toast.error("❌ " + res.message);
+                  }
+                } catch (err: any) {
+                  toast.error(err?.message || "Lỗi kiểm tra key");
+                } finally {
+                  setIsTestingKey(false);
+                }
+              }}
+              className="h-8 text-xs shrink-0 bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 font-semibold"
+            >
+              {isTestingKey ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+              Lưu & Test Key
+            </Button>
+          </div>
+          <div>
+            <Select
+              value={selectedModel}
+              onValueChange={(val) => {
+                setSelectedModel(val);
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("gemini_selected_model", val);
+                  localStorage.setItem("custom_gemini_model", val);
+                }
+                toast.success(`Đã chọn mô hình: ${val}`);
+              }}
+            >
+              <SelectTrigger className="h-8 text-[11px] bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 font-medium">
+                <SelectValue placeholder="Chọn Model AI" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gemini-2.0-flash-lite">⚡ 2.0 Flash Lite (Siêu tốc)</SelectItem>
+                <SelectItem value="gemini-2.0-flash">🚀 2.0 Flash (Mới nhất)</SelectItem>
+                <SelectItem value="gemini-1.5-flash-8b">⚡ 1.5 Flash 8B (Nhẹ)</SelectItem>
+                <SelectItem value="gemini-1.5-flash">⚡ 1.5 Flash (Chuẩn)</SelectItem>
+                <SelectItem value="gemini-1.5-pro">💎 1.5 Pro (Độ nét cao)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex items-center justify-between text-[10px] text-amber-700/80 dark:text-amber-400/80 pt-0.5">
+          <span>* Hệ thống tự động gửi API Key và Model được chọn cho mọi lượt trích xuất.</span>
+          <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+            Model hiện tại: {selectedModel}
+          </span>
+        </div>
       </div>
 
       {/* SQLite Database Management Card */}
@@ -331,98 +496,52 @@ export function SettingsTab() {
         </div>
       </div>
 
-      {/* Gemini API Key Configuration */}
+      {/* Backend API Configuration & Status */}
       <div className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg p-5 space-y-4 shadow-2xs">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-[#d0d7de] dark:border-[#30363d] pb-2 flex items-center gap-1.5">
-          <Key className="w-3.5 h-3.5 text-emerald-600" />
-          Google Gemini AI API Key (Dùng cho AI Vision OCR & Phân tích PPCT)
-        </h3>
-
-        <div className="space-y-3 text-xs max-w-lg">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="font-semibold block text-slate-700 dark:text-slate-300">
-                API Key (Google AI Studio)
-              </label>
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Lấy mã API Key miễn phí ↗
-              </a>
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="password"
-                value={geminiKey}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setGeminiKey(val);
-                  if (typeof window !== "undefined") {
-                    localStorage.setItem("custom_gemini_key", val.trim());
-                    localStorage.setItem("gemini_api_key", val.trim());
-                  }
-                }}
-                placeholder="Dán mã API Key (AIzaSy...) vào đây..."
-                className="h-8 text-xs font-mono flex-1"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isTestingKey}
-                onClick={async () => {
-                  if (!geminiKey.trim()) {
-                    toast.error("Vui lòng nhập API Key");
-                    return;
-                  }
-                  setIsTestingKey(true);
-                  try {
-                    const trimmed = geminiKey.trim();
-                    if (typeof window !== "undefined") {
-                      localStorage.setItem("custom_gemini_key", trimmed);
-                      localStorage.setItem("gemini_api_key", trimmed);
-                    }
-                    await apiClient("/api/gemini/set-key", {
-                      method: "POST",
-                      body: JSON.stringify({ api_key: trimmed }),
-                    });
-                    const res = await apiClient<{ success: boolean; message: string }>("/api/gemini/test", {
-                      method: "POST",
-                      body: JSON.stringify({ api_key: trimmed }),
-                    });
-                    if (res.success) {
-                      toast.success("✅ " + res.message);
-                    } else {
-                      toast.error("❌ " + res.message);
-                    }
-                  } catch (err: any) {
-                    toast.error(err?.message || "Lỗi kiểm tra key");
-                  } finally {
-                    setIsTestingKey(false);
-                  }
-                }}
-                className="h-8 text-xs shrink-0 border-[#d0d7de] hover:bg-emerald-50 text-emerald-700 dark:text-emerald-400"
-              >
-                {isTestingKey ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
-                Lưu & Test Key
-              </Button>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Khóa API được lưu vào hệ thống để dùng cho OCR ảnh chụp, đọc file PDF và tự động đối chiếu PPCT.
-            </p>
-          </div>
+        <div className="flex items-center justify-between border-b border-[#d0d7de] dark:border-[#30363d] pb-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <Server className="w-3.5 h-3.5 text-emerald-600" />
+            Kết nối Backend (FastAPI) & Trạng thái Keep-Alive
+          </h3>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={loadHealthInfo}
+            className="h-7 text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 gap-1"
+          >
+            <Activity className="w-3.5 h-3.5 text-emerald-500" />
+            Kiểm tra trạng thái
+          </Button>
         </div>
-      </div>
 
-      {/* Backend API Configuration */}
-      <div className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg p-5 space-y-4 shadow-2xs">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-[#d0d7de] dark:border-[#30363d] pb-2 flex items-center gap-1.5">
-          <Server className="w-3.5 h-3.5 text-emerald-600" />
-          Kết nối Backend (FastAPI)
-        </h3>
+        {healthInfo && (
+          <div className="p-3 bg-slate-50 dark:bg-[#0d1117] rounded-lg border border-[#d0d7de] dark:border-[#30363d] space-y-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                Server: {healthInfo.service} ({healthInfo.environment})
+              </span>
+              <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[10px]">
+                {healthInfo.status.toUpperCase()}
+              </Badge>
+            </div>
+            {healthInfo.keep_alive && (
+              <div className="text-[11px] text-slate-500 space-y-1 pt-1 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <span>Keep-Alive Auto-Ping:</span>
+                  <span className="font-semibold text-emerald-600">
+                    {healthInfo.keep_alive.enabled ? "Đang bật (Mỗi 10 phút)" : "Tắt"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Tổng số pings thành công:</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300">
+                    {healthInfo.keep_alive.successful_pings} / {healthInfo.keep_alive.total_pings}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="space-y-3 text-xs max-w-md">
           <div>
@@ -440,7 +559,7 @@ export function SettingsTab() {
           <Button
             size="sm"
             onClick={handleSaveSettings}
-            className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
           >
             Lưu thay đổi
           </Button>
@@ -449,3 +568,4 @@ export function SettingsTab() {
     </div>
   );
 }
+

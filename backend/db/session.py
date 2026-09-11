@@ -7,7 +7,7 @@ is_sqlite = "sqlite" in settings.DATABASE_URL
 
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False, "timeout": 15} if is_sqlite else {},
+    connect_args={"check_same_thread": False, "timeout": 60} if is_sqlite else {},
     pool_pre_ping=True,
 )
 
@@ -18,7 +18,9 @@ if is_sqlite:
         cursor.execute("PRAGMA journal_mode=WAL;")
         cursor.execute("PRAGMA synchronous=NORMAL;")
         cursor.execute("PRAGMA foreign_keys=ON;")
-        cursor.execute("PRAGMA busy_timeout=5000;")
+        cursor.execute("PRAGMA busy_timeout=60000;")
+        cursor.execute("PRAGMA temp_store=MEMORY;")
+        cursor.execute("PRAGMA cache_size=-64000;")
         cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

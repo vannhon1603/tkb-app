@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -6,6 +7,7 @@ from db.session import get_db
 from db.models import PPCTModel
 from schemas.ppct import PPCTItemResponse, PPCTItemCreate, PPCTItemUpdate, PPCTBulkUploadResponse
 from services.ppct_parser import parse_ppct_excel, parse_ppct_word, parse_ppct_pdf
+from routers.auth import get_current_user_id
 from logger import logger
 
 router = APIRouter(prefix="/ppct", tags=["Phân Phối Chương Trình (PPCT)"])
@@ -29,11 +31,12 @@ async def upload_ppct_file(
     overwrite: bool = Form(True),
     api_key: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     from services.gemini_service import set_custom_gemini_key
     if api_key and api_key.strip():
-        set_custom_gemini_key(api_key.strip())
+        await run_in_threadpool(set_custom_gemini_key, api_key.strip())
 
     content = await file.read()
     filename = file.filename.lower()
@@ -43,20 +46,21 @@ async def upload_ppct_file(
     
     parsed_items = []
     if filename.endswith(".xlsx") or filename.endswith(".xls"):
-        parsed_items = parse_ppct_excel(content, default_grade=grade, default_subject=subject)
+        parsed_items = await run_in_threadpool(parse_ppct_excel, content, default_grade=grade, default_subject=subject)
     elif filename.endswith(".docx"):
-        parsed_items = parse_ppct_word(content, default_grade=grade, default_subject=subject)
+        parsed_items = await run_in_threadpool(parse_ppct_word, content, default_grade=grade, default_subject=subject)
     elif filename.endswith(".pdf"):
-        parsed_items = parse_ppct_pdf(content, default_grade=grade, default_subject=subject, selected_model=model_name)
+        parsed_items = await run_in_threadpool(parse_ppct_pdf, content, default_grade=grade, default_subject=subject, selected_model=model_name)
     else:
         raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file định dạng Excel (.xlsx), Word (.docx) hoặc PDF (.pdf)")
 
     if not parsed_items:
         raise HTTPException(status_code=400, detail="Không thể đọc nội dung phân phối chương trình từ file. Vui lòng kiểm tra định dạng bảng.")
 
-    # Overwrite previous items for this grade & subject if requested
+    # Overwrite previous items for this user & grade & subject if requested
     if overwrite:
         db.query(PPCTModel).filter(
+            PPCTModel.user_id == user_id,
             PPCTModel.grade == grade,
             PPCTModel.subject == subject
         ).delete()
@@ -65,6 +69,7 @@ async def upload_ppct_file(
     saved_items = []
     for item_data in parsed_items:
         ppct_item = PPCTModel(
+            user_id=user_id,
             grade=item_data.get("grade", grade),
             subject=item_data.get("subject", subject),
             week=item_data.get("week", 1),
@@ -92,9 +97,10 @@ async def list_ppct(
     grade: Optional[str] = Query(None),
     subject: Optional[str] = Query(None),
     week: Optional[int] = Query(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    q = db.query(PPCTModel)
+    q = db.query(PPCTModel).filter(PPCTModel.user_id == user_id)
     if grade:
         q = q.filter(PPCTModel.grade == grade)
     if subject:
@@ -104,8 +110,12 @@ async def list_ppct(
     return q.order_by(PPCTModel.week.asc(), PPCTModel.lesson_number.asc()).all()
 
 @router.post("/", response_model=PPCTItemResponse)
-async def create_ppct_item(item_in: PPCTItemCreate, db: Session = Depends(get_db)):
-    db_item = PPCTModel(**item_in.model_dump())
+async def create_ppct_item(
+    item_in: PPCTItemCreate,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    db_item = PPCTModel(**item_in.model_dump(), user_id=user_id)
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
@@ -115,9 +125,10 @@ async def create_ppct_item(item_in: PPCTItemCreate, db: Session = Depends(get_db
 async def update_ppct_item(
     item_id: int,
     item_in: PPCTItemUpdate,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    item = db.query(PPCTModel).filter(PPCTModel.id == item_id).first()
+    item = db.query(PPCTModel).filter(PPCTModel.id == item_id, PPCTModel.user_id == user_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Bản ghi không tồn tại")
     
@@ -131,11 +142,14 @@ async def update_ppct_item(
     return item
 
 @router.get("/stats")
-async def get_ppct_stats(db: Session = Depends(get_db)):
-    total = db.query(PPCTModel).count()
+async def get_ppct_stats(
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    total = db.query(PPCTModel).filter(PPCTModel.user_id == user_id).count()
     from sqlalchemy import func
-    grade_counts = db.query(PPCTModel.grade, func.count(PPCTModel.id)).group_by(PPCTModel.grade).all()
-    subject_counts = db.query(PPCTModel.subject, func.count(PPCTModel.id)).group_by(PPCTModel.subject).all()
+    grade_counts = db.query(PPCTModel.grade, func.count(PPCTModel.id)).filter(PPCTModel.user_id == user_id).group_by(PPCTModel.grade).all()
+    subject_counts = db.query(PPCTModel.subject, func.count(PPCTModel.id)).filter(PPCTModel.user_id == user_id).group_by(PPCTModel.subject).all()
     return {
         "total": total,
         "grades": [{"grade": g, "count": c} for g, c in grade_counts],
@@ -146,9 +160,10 @@ async def get_ppct_stats(db: Session = Depends(get_db)):
 async def clear_ppct(
     grade: Optional[str] = None,
     subject: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    q = db.query(PPCTModel)
+    q = db.query(PPCTModel).filter(PPCTModel.user_id == user_id)
     if grade:
         q = q.filter(PPCTModel.grade == grade)
     if subject:
@@ -162,16 +177,27 @@ class PPCTBulkDeleteRequest(BaseModel):
     ids: List[int]
 
 @router.post("/bulk-delete")
-async def bulk_delete_ppct(req: PPCTBulkDeleteRequest, db: Session = Depends(get_db)):
+async def bulk_delete_ppct(
+    req: PPCTBulkDeleteRequest,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
     if not req.ids:
         return {"status": "success", "message": "Không có bản ghi nào được chọn"}
-    count = db.query(PPCTModel).filter(PPCTModel.id.in_(req.ids)).delete(synchronize_session=False)
+    count = db.query(PPCTModel).filter(
+        PPCTModel.id.in_(req.ids),
+        PPCTModel.user_id == user_id
+    ).delete(synchronize_session=False)
     db.commit()
     return {"status": "success", "message": f"Đã xóa {count} tiết PPCT."}
 
 @router.delete("/{item_id}")
-async def delete_ppct_item(item_id: int, db: Session = Depends(get_db)):
-    item = db.query(PPCTModel).filter(PPCTModel.id == item_id).first()
+async def delete_ppct_item(
+    item_id: int,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    item = db.query(PPCTModel).filter(PPCTModel.id == item_id, PPCTModel.user_id == user_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Bản ghi không tồn tại")
     db.delete(item)
@@ -193,6 +219,7 @@ def format_ppct_lesson_str(lesson_number: Optional[int], notes: Optional[str] = 
 async def export_ppct_excel(
     grade: Optional[str] = Query(None),
     subject: Optional[str] = Query(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     import openpyxl
@@ -200,7 +227,7 @@ async def export_ppct_excel(
     from fastapi.responses import Response
     import io, urllib.parse
 
-    q = db.query(PPCTModel)
+    q = db.query(PPCTModel).filter(PPCTModel.user_id == user_id)
     if grade and grade != "all":
         q = q.filter(PPCTModel.grade == grade)
     if subject and subject != "all":
@@ -293,9 +320,14 @@ class PPCTBulkCreateRequest(BaseModel):
     overwrite: Optional[bool] = True
 
 @router.post("/bulk", response_model=PPCTBulkUploadResponse)
-async def bulk_create_ppct(req: PPCTBulkCreateRequest, db: Session = Depends(get_db)):
+async def bulk_create_ppct(
+    req: PPCTBulkCreateRequest,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
     if req.overwrite:
         db.query(PPCTModel).filter(
+            PPCTModel.user_id == user_id,
             PPCTModel.grade == req.grade,
             PPCTModel.subject == req.subject
         ).delete()
@@ -304,6 +336,7 @@ async def bulk_create_ppct(req: PPCTBulkCreateRequest, db: Session = Depends(get
     saved_items = []
     for itm in req.items:
         ppct_item = PPCTModel(
+            user_id=user_id,
             grade=itm.grade or req.grade,
             subject=itm.subject or req.subject,
             week=itm.week,
@@ -338,11 +371,12 @@ class PPCTPasteRequest(BaseModel):
 @router.post("/paste", response_model=PPCTBulkUploadResponse)
 async def paste_ppct_text(
     req: PPCTPasteRequest,
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     from services.gemini_service import set_custom_gemini_key
     if req.api_key and req.api_key.strip():
-        set_custom_gemini_key(req.api_key.strip())
+        await run_in_threadpool(set_custom_gemini_key, req.api_key.strip())
 
     from services.ppct_parser import parse_ppct_text
     if not req.text or not req.text.strip():
@@ -350,13 +384,14 @@ async def paste_ppct_text(
 
     grade = normalize_grade(req.grade, req.text)
     subject = req.subject or "Toán"
-    parsed_items = parse_ppct_text(req.text, default_grade=grade, default_subject=subject, selected_model=req.model_name)
+    parsed_items = await run_in_threadpool(parse_ppct_text, req.text, default_grade=grade, default_subject=subject, selected_model=req.model_name)
 
     if not parsed_items:
         raise HTTPException(status_code=400, detail="Không nhận diện được tiết học từ nội dung đã dán.")
 
     if req.overwrite:
         db.query(PPCTModel).filter(
+            PPCTModel.user_id == user_id,
             PPCTModel.grade == grade,
             PPCTModel.subject == subject
         ).delete()
@@ -365,6 +400,7 @@ async def paste_ppct_text(
     saved_items = []
     for item_data in parsed_items:
         ppct_item = PPCTModel(
+            user_id=user_id,
             grade=item_data.get("grade", grade),
             subject=item_data.get("subject", subject),
             week=item_data.get("week", 1),
@@ -395,6 +431,7 @@ async def upload_ppct_image(
     overwrite: bool = Form(True),
     api_key: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     """
@@ -402,7 +439,7 @@ async def upload_ppct_image(
     """
     from services.gemini_service import set_custom_gemini_key
     if api_key and api_key.strip():
-        set_custom_gemini_key(api_key.strip())
+        await run_in_threadpool(set_custom_gemini_key, api_key.strip())
     import json
     import re
     from services.gemini_service import generate_with_gemini_vision
@@ -455,7 +492,8 @@ HÃY TRẢ VỀ CHỈ MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần túy [ .
 ]
 """
     try:
-        raw_result = generate_with_gemini_vision(
+        raw_result = await run_in_threadpool(
+            generate_with_gemini_vision,
             prompt=prompt,
             image_bytes=image_bytes,
             mime_type=file.content_type or "image/png",
@@ -493,6 +531,7 @@ HÃY TRẢ VỀ CHỈ MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần túy [ .
 
     if overwrite:
         db.query(PPCTModel).filter(
+            PPCTModel.user_id == user_id,
             PPCTModel.grade == grade,
             PPCTModel.subject == subject
         ).delete()
@@ -516,6 +555,7 @@ HÃY TRẢ VỀ CHỈ MỘT MẢNG JSON HỢP LỆ (mảng JSON thuần túy [ .
                 l_num = 105 + l_num
 
         ppct_item = PPCTModel(
+            user_id=user_id,
             grade=grade,
             subject=subject,
             week=w,

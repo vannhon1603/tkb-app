@@ -27,7 +27,6 @@ export function BackendWarmupProvider({ children }: { children: React.ReactNode 
   const [status, setStatus] = useState<BackendHealthStatus>("checking");
   const [responseTime, setResponseTime] = useState<number | null>(null);
   const [lastPingTime, setLastPingTime] = useState<Date | null>(null);
-  const [showToast, setShowToast] = useState(false);
   const isMountedRef = useRef(true);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -43,7 +42,6 @@ export function BackendWarmupProvider({ children }: { children: React.ReactNode 
     const slowTimer = setTimeout(() => {
       if (isMountedRef.current && status !== "online") {
         setStatus("waking");
-        setShowToast(true);
       }
     }, 1500);
 
@@ -75,16 +73,6 @@ export function BackendWarmupProvider({ children }: { children: React.ReactNode 
         setResponseTime(duration);
         setLastPingTime(new Date());
         setStatus("online");
-        
-        // Show success briefly if it was previously waking
-        if (status === "waking" || isRetry) {
-          setShowToast(true);
-          setTimeout(() => {
-            if (isMountedRef.current) setShowToast(false);
-          }, 4000);
-        } else {
-          setShowToast(false);
-        }
       } else {
         throw new Error(`Server returned ${res?.status}`);
       }
@@ -94,7 +82,6 @@ export function BackendWarmupProvider({ children }: { children: React.ReactNode 
 
       console.warn("Backend ping attempt failed, server may be waking up...", err);
       setStatus("waking");
-      setShowToast(true);
 
       // Auto retry every 3.5 seconds while waking
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
@@ -144,40 +131,6 @@ export function BackendWarmupProvider({ children }: { children: React.ReactNode 
       }}
     >
       {children}
-
-      {/* Floating Warmup Indicator (shown when waking up or upon first success) */}
-      {showToast && (
-        <div className="fixed bottom-4 right-4 z-50 transition-all duration-300 transform animate-in fade-in slide-in-from-bottom-3 max-w-sm">
-          {status === "waking" ? (
-            <div className="flex items-center gap-3 px-4 py-3 bg-white/95 dark:bg-[#161b22]/95 backdrop-blur-md border border-amber-300 dark:border-amber-600/50 rounded-xl shadow-lg text-xs text-amber-900 dark:text-amber-200">
-              <div className="relative flex items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
-                <Zap className="h-2.5 w-2.5 text-amber-600 dark:text-amber-300 absolute" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-amber-800 dark:text-amber-300">
-                  Đang khởi động máy chủ đám mây...
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  Gói miễn phí Render đang kích hoạt (khoảng 20-30s).
-                </p>
-              </div>
-            </div>
-          ) : status === "online" ? (
-            <div className="flex items-center gap-2.5 px-4 py-2.5 bg-emerald-50/95 dark:bg-[#0d1f17]/95 backdrop-blur-md border border-emerald-300 dark:border-emerald-700 rounded-xl shadow-md text-xs text-emerald-800 dark:text-emerald-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <div className="flex-1">
-                <span className="font-medium">Máy chủ đã sẵn sàng!</span>
-                {responseTime && (
-                  <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 ml-1.5 font-mono">
-                    ({responseTime}ms)
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      )}
     </BackendContext.Provider>
   );
 }

@@ -124,17 +124,17 @@ export function ApiKeyModal({ open, onOpenChange, onKeySaved, defaultTab = "inpu
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden border-[#d0d7de] dark:border-[#30363d] bg-white dark:bg-[#161b22] shadow-2xl">
         {/* Header Banner */}
-        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-5 text-white relative">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-4 sm:p-5 text-white relative">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shrink-0">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <DialogTitle className="text-base font-bold text-white">
+              <div className="min-w-0">
+                <DialogTitle className="text-sm sm:text-base font-bold text-white leading-tight">
                   Cấu Hình & Hướng Dẫn Gemini API Key
                 </DialogTitle>
-                <DialogDescription className="text-xs text-white/80 mt-0.5">
+                <DialogDescription className="text-[11px] sm:text-xs text-white/80 mt-0.5">
                   Mô hình Google Gemini 2.0 / 1.5 Flash hoàn toàn miễn phí
                 </DialogDescription>
               </div>
@@ -144,18 +144,18 @@ export function ApiKeyModal({ open, onOpenChange, onKeySaved, defaultTab = "inpu
               href="https://aistudio.google.com/app/apikey"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs bg-white text-emerald-800 font-semibold px-3 py-1.5 rounded-lg shadow-sm hover:bg-emerald-50 transition-colors shrink-0"
+              className="inline-flex items-center justify-center gap-1 text-xs bg-white text-emerald-800 font-semibold px-3 py-1.5 rounded-lg shadow-sm hover:bg-emerald-50 transition-colors shrink-0 w-full sm:w-auto"
             >
               Mở AI Studio <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
             </a>
           </div>
 
           {/* Navigation Tab Bar */}
-          <div className="flex gap-2 mt-4 border-t border-white/20 pt-3">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3 sm:mt-4 border-t border-white/20 pt-2.5 sm:pt-3">
             <button
               type="button"
               onClick={() => setActiveTab("input")}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+              className={`text-xs font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
                 activeTab === "input"
                   ? "bg-white text-emerald-800 shadow-xs"
                   : "text-white/80 hover:text-white hover:bg-white/10"
@@ -167,14 +167,14 @@ export function ApiKeyModal({ open, onOpenChange, onKeySaved, defaultTab = "inpu
             <button
               type="button"
               onClick={() => setActiveTab("guide")}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+              className={`text-xs font-semibold px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
                 activeTab === "guide"
                   ? "bg-white text-emerald-800 shadow-xs"
                   : "text-white/80 hover:text-white hover:bg-white/10"
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              Hướng dẫn lấy Key miễn phí (5 bước)
+              Hướng dẫn lấy Key (5 bước)
             </button>
           </div>
         </div>

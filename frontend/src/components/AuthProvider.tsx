@@ -100,11 +100,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         requestUrl.startsWith("/api") ||
         requestUrl.includes("/api/");
 
-      if (storedToken && isApiRequest) {
+      if (isApiRequest) {
         init = init || {};
         const headers = new Headers(init.headers || {});
-        if (!headers.has("Authorization")) {
+        if (storedToken && !headers.has("Authorization")) {
           headers.set("Authorization", `Bearer ${storedToken}`);
+        }
+        const storedUser = localStorage.getItem("auth_user");
+        if (storedUser && !headers.has("X-User-Id")) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            const uid = parsed.email || parsed.id;
+            if (uid) headers.set("X-User-Id", String(uid));
+          } catch (e) {}
         }
         init.headers = headers;
       }

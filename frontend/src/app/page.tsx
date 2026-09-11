@@ -21,6 +21,7 @@ import { FormEditorTab } from "@/components/template/FormEditorTab";
 import { AnalyticsTab } from "@/components/template/AnalyticsTab";
 import { SettingsTab } from "@/components/template/SettingsTab";
 import { GuideTab } from "@/components/template/GuideTab";
+import { BottomNav } from "@/components/BottomNav";
 import { Loader2, School } from "lucide-react";
 
 const TAB_TITLES: Record<string, string> = {
@@ -80,7 +81,7 @@ export default function Home() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         {/* Top Navbar */}
         <Navbar
           title={title}
@@ -97,8 +98,8 @@ export default function Home() {
         />
 
         {/* Scrollable Page Body */}
-        <main className="flex-1 overflow-y-auto p-2.5 sm:p-4 md:p-6 custom-scrollbar">
-          <div className="max-w-7xl mx-auto space-y-4">
+        <main className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 pb-24 sm:pb-6 custom-scrollbar">
+          <div className="max-w-7xl mx-auto space-y-3.5 sm:space-y-4">
             <ErrorBoundary>
               {activeTab === "so-bao-giang" && <SoBaoGiangTab />}
               {activeTab === "ppct" && <PPCTTab />}
@@ -118,6 +119,13 @@ export default function Home() {
             </ErrorBoundary>
           </div>
         </main>
+
+        {/* Mobile Touch-Friendly Bottom Navigation Bar */}
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        />
       </div>
 
       {/* Gemini API Key Configuration Modal */}

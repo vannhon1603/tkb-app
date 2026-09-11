@@ -11,6 +11,8 @@ class TKBSlotBase(BaseModel):
     session: Optional[str] = "Sáng"
     room: Optional[str] = None
     semester: Optional[str] = "Học kỳ 1"
+    from_week: Optional[int] = 1
+    to_week: Optional[int] = 35
 
 class TKBSlotCreate(TKBSlotBase):
     pass
@@ -24,6 +26,8 @@ class TKBSlotUpdate(BaseModel):
     session: Optional[str] = None
     room: Optional[str] = None
     semester: Optional[str] = None
+    from_week: Optional[int] = None
+    to_week: Optional[int] = None
 
 class TKBSlotResponse(TKBSlotBase):
     id: int

@@ -28,11 +28,23 @@ export async function apiClient<T>(
     "Content-Type": "application/json",
   };
 
-  // Attach auth token if available in localStorage
+  // Attach auth token & user ID if available in localStorage
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("auth_token");
     if (token) {
       (defaultHeaders as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+    }
+    const storedUser = localStorage.getItem("auth_user");
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        const uid = parsed.email || parsed.id;
+        if (uid) {
+          (defaultHeaders as Record<string, string>)["X-User-Id"] = String(uid);
+        }
+      } catch (e) {
+        // ignore parse error
+      }
     }
   }
 

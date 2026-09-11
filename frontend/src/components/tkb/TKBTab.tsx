@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useDeferredValue } from "react";
 import {
   Calendar,
   Upload,
@@ -53,6 +53,9 @@ interface TKBSlot {
   period: number;      // 1..10
   session?: string;
   room?: string;
+  semester?: string;
+  from_week?: number;
+  to_week?: number;
 }
 
 const DAYS = [
@@ -68,6 +71,8 @@ export function TKBTab() {
   const [slots, setSlots] = useState<TKBSlot[]>([]);
   const [teachers, setTeachers] = useState<string[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<string>("Tất cả");
+  const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "all">("all");
+  const [weekRanges, setWeekRanges] = useState<{ from_week: number; to_week: number; label: string }[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sessionFilter, setSessionFilter] = useState<"all" | "morning" | "afternoon">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,6 +83,8 @@ export function TKBTab() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadTab, setUploadTab] = useState<"file" | "paste" | "image">("file");
   const [uploadTeacherName, setUploadTeacherName] = useState("Giáo viên Toán");
+  const [uploadFromWeek, setUploadFromWeek] = useState<number>(1);
+  const [uploadToWeek, setUploadToWeek] = useState<number>(35);
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>("gemini-2.0-flash-lite");
   const [isGeminiConfigured, setIsGeminiConfigured] = useState(false);
@@ -99,6 +106,8 @@ export function TKBTab() {
     period: 1,
     session: "Sáng",
     room: "",
+    from_week: 1,
+    to_week: 35,
   });
 
   const checkGeminiStatus = async () => {
@@ -164,6 +173,8 @@ export function TKBTab() {
       if (teacherList.length > 0 && selectedTeacher === "Tất cả") {
         setSelectedTeacher(teacherList[0]);
       }
+      const ranges = await apiClient<{ from_week: number; to_week: number; label: string }[]>("/api/tkb/ranges");
+      setWeekRanges(ranges);
     } catch (err: any) {
       console.error(err);
     } finally {
@@ -218,6 +229,8 @@ export function TKBTab() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("teacher_name", uploadTeacherName);
+    formData.append("from_week", String(uploadFromWeek));
+    formData.append("to_week", String(uploadToWeek));
     formData.append("overwrite", "true");
 
     setIsUploading(true);
@@ -234,7 +247,7 @@ export function TKBTab() {
       }
 
       const result = await res.json();
-      toast.success(`Đã nạp thành công ${result.total_slots} tiết dạy TKB!`);
+      toast.success(`Đã nạp thành công ${result.total_slots} tiết TKB (Áp dụng Tuần ${uploadFromWeek} → ${uploadToWeek})!`);
       setUploadDialogOpen(false);
       loadTKB();
     } catch (err: any) {
@@ -274,11 +287,13 @@ export function TKBTab() {
         body: JSON.stringify({
           text: pastedTKBText.trim(),
           teacher_name: uploadTeacherName,
+          from_week: uploadFromWeek,
+          to_week: uploadToWeek,
           overwrite: true,
         }),
       });
 
-      toast.success(`Đã nạp thành công ${result.total_slots} tiết TKB từ nội dung đã dán!`);
+      toast.success(`Đã nạp thành công ${result.total_slots} tiết TKB (Áp dụng Tuần ${uploadFromWeek} → ${uploadToWeek})!`);
       setUploadDialogOpen(false);
       setPastedTKBText("");
       loadTKB();
@@ -334,7 +349,7 @@ export function TKBTab() {
         : "");
 
     if (!effectiveKey && !isGeminiConfigured) {
-      toast.error("⚠️ Vui lòng nhập hoặc dán mã Gemini API Key vào ô màu vàng bên trên để AI Vision đọc ảnh!", {
+      toast.error("⚠️ Vui lòng cấu hình Gemini API Key trong tab Cài Đặt hoặc biểu tượng Key trên thanh tiêu đề để AI xử lý!", {
         duration: 6000,
       });
       return;
@@ -348,6 +363,8 @@ export function TKBTab() {
       const formData = new FormData();
       formData.append("file", pastedImage);
       formData.append("teacher_name", uploadTeacherName);
+      formData.append("from_week", String(uploadFromWeek));
+      formData.append("to_week", String(uploadToWeek));
       formData.append("overwrite", "true");
       formData.append("model_name", selectedGeminiModel);
       if (effectiveKey) {
@@ -366,7 +383,7 @@ export function TKBTab() {
       }
 
       const result = await res.json();
-      toast.success(`✨ AI Vision đã trích xuất thành công ${result.total_slots} tiết dạy TKB từ ảnh chụp!`);
+      toast.success(`✨ AI Vision đã trích xuất thành công ${result.total_slots} tiết dạy TKB (Áp dụng Tuần ${uploadFromWeek} → ${uploadToWeek})!`);
       setUploadDialogOpen(false);
       setPastedImage(null);
       setImagePreviewUrl(null);
@@ -407,6 +424,8 @@ export function TKBTab() {
       period: period || 1,
       session: period && period > 5 ? "Chiều" : "Sáng",
       room: "",
+      from_week: selectedWeekFilter !== "all" ? selectedWeekFilter : 1,
+      to_week: selectedWeekFilter !== "all" ? selectedWeekFilter : 35,
     });
     setSlotDialogOpen(true);
   };
@@ -421,6 +440,8 @@ export function TKBTab() {
       period: slot.period,
       session: slot.session || (slot.period > 5 ? "Chiều" : "Sáng"),
       room: slot.room || "",
+      from_week: slot.from_week || 1,
+      to_week: slot.to_week || 35,
     });
     setSlotDialogOpen(true);
   };
@@ -474,41 +495,72 @@ export function TKBTab() {
     const teacherParam = encodeURIComponent(
       selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên"
     );
-    const url = `${BASE_URL}/api/tkb/export/excel?teacher_name=${teacherParam}`;
+    const weekParam = selectedWeekFilter !== "all" ? `&week_number=${selectedWeekFilter}` : "";
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") || "" : "";
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+    const url = `${BASE_URL}/api/tkb/export/excel?teacher_name=${teacherParam}${weekParam}${tokenParam}`;
     window.open(url, "_blank");
   };
 
-  const filteredSlots = slots.filter((slot) => {
-    const matchTeacher =
-      selectedTeacher === "Tất cả" || slot.teacher_name === selectedTeacher;
-    const matchSearch =
-      slot.class_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      slot.subject.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchSession =
-      sessionFilter === "all" ||
-      (sessionFilter === "morning" && (slot.period <= 5 || slot.session === "Sáng")) ||
-      (sessionFilter === "afternoon" && (slot.period > 5 || slot.session === "Chiều"));
-    return matchTeacher && matchSearch && matchSession;
-  });
+  const deferredSearch = React.useDeferredValue(searchQuery);
 
-  const allFilteredTeacherSlots = slots.filter((slot) => {
-    const matchTeacher =
-      selectedTeacher === "Tất cả" || slot.teacher_name === selectedTeacher;
-    const matchSearch =
-      slot.class_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      slot.subject.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchTeacher && matchSearch;
-  });
+  const filteredSlots = useMemo(() => {
+    const query = deferredSearch.trim().toLowerCase();
+    return slots.filter((slot) => {
+      const matchTeacher =
+        selectedTeacher === "Tất cả" || slot.teacher_name === selectedTeacher;
+      const matchSearch =
+        !query ||
+        slot.class_name.toLowerCase().includes(query) ||
+        slot.subject.toLowerCase().includes(query);
+      const matchSession =
+        sessionFilter === "all" ||
+        (sessionFilter === "morning" && (slot.period <= 5 || slot.session === "Sáng")) ||
+        (sessionFilter === "afternoon" && (slot.period > 5 || slot.session === "Chiều"));
+      const matchWeek =
+        selectedWeekFilter === "all" ||
+        ((slot.from_week || 1) <= selectedWeekFilter && (slot.to_week || 35) >= selectedWeekFilter);
+      return matchTeacher && matchSearch && matchSession && matchWeek;
+    });
+  }, [slots, selectedTeacher, deferredSearch, sessionFilter, selectedWeekFilter]);
 
-  const morningSlotsCount = allFilteredTeacherSlots.filter(
-    (s) => s.period <= 5 || s.session === "Sáng"
-  ).length;
-  const afternoonSlotsCount = allFilteredTeacherSlots.filter(
-    (s) => s.period > 5 || s.session === "Chiều"
-  ).length;
+  const allFilteredTeacherSlots = useMemo(() => {
+    const query = deferredSearch.trim().toLowerCase();
+    return slots.filter((slot) => {
+      const matchTeacher =
+        selectedTeacher === "Tất cả" || slot.teacher_name === selectedTeacher;
+      const matchSearch =
+        !query ||
+        slot.class_name.toLowerCase().includes(query) ||
+        slot.subject.toLowerCase().includes(query);
+      const matchWeek =
+        selectedWeekFilter === "all" ||
+        ((slot.from_week || 1) <= selectedWeekFilter && (slot.to_week || 35) >= selectedWeekFilter);
+      return matchTeacher && matchSearch && matchWeek;
+    });
+  }, [slots, selectedTeacher, deferredSearch, selectedWeekFilter]);
+
+  const morningSlotsCount = useMemo(
+    () => allFilteredTeacherSlots.filter((s) => s.period <= 5 || s.session === "Sáng").length,
+    [allFilteredTeacherSlots]
+  );
+
+  const afternoonSlotsCount = useMemo(
+    () => allFilteredTeacherSlots.filter((s) => s.period > 5 || s.session === "Chiều").length,
+    [allFilteredTeacherSlots]
+  );
+
+  // Fast O(1) lookup map for grid rendering
+  const slotMap = useMemo(() => {
+    const map = new Map<string, TKBSlot>();
+    allFilteredTeacherSlots.forEach((s) => {
+      map.set(`${s.day_of_week}-${s.period}`, s);
+    });
+    return map;
+  }, [allFilteredTeacherSlots]);
 
   const getSlot = (day: number, period: number) => {
-    return allFilteredTeacherSlots.find((s) => s.day_of_week === day && s.period === period);
+    return slotMap.get(`${day}-${period}`);
   };
 
   return (
@@ -521,7 +573,7 @@ export function TKBTab() {
             Quản Lý Thời Khóa Biểu (TKB Buổi Sáng & Buổi Chiều)
           </h2>
           <p className="text-[11px] text-slate-500">
-            Quản lý ma trận tiết dạy Sáng / Chiều, chỉnh sửa từng tiết dạy hoặc nạp file TKB tự động
+            Quản lý ma trận tiết dạy Sáng / Chiều theo từng khoảng tuần áp dụng (Tuần X → Tuần Y)
           </p>
         </div>
 
@@ -542,17 +594,7 @@ export function TKBTab() {
             size="sm"
             variant="outline"
             onClick={() => {
-              setEditingSlot(null);
-              setSlotForm({
-                teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
-                class_name: "",
-                subject: "Toán",
-                day_of_week: 2,
-                period: 1,
-                session: "Sáng",
-                room: "",
-              });
-              setSlotDialogOpen(true);
+              handleOpenAddSlot();
             }}
             className="h-8 text-xs gap-1.5 border-[#d0d7de] dark:border-[#30363d] w-full sm:w-auto justify-center"
           >
@@ -584,9 +626,9 @@ export function TKBTab() {
         </div>
       </div>
 
-      {/* Teacher & View Selector Toolbar */}
+      {/* Teacher & Week Selector Toolbar */}
       <div className="flex flex-col gap-2.5 bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] p-3 rounded-lg text-xs shadow-2xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
           <div className="flex items-center gap-2 w-full">
             <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Giáo viên:</span>
             <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
@@ -600,6 +642,34 @@ export function TKBTab() {
                     {t}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2 w-full">
+            <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Khoảng Tuần:</span>
+            <Select
+              value={String(selectedWeekFilter)}
+              onValueChange={(val) => setSelectedWeekFilter(val === "all" ? "all" : Number(val))}
+            >
+              <SelectTrigger className="h-8 w-full text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                <SelectValue placeholder="Chọn tuần áp dụng" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                <SelectItem value="all">Tất cả khoảng tuần ({slots.length} tiết)</SelectItem>
+                {Array.from({ length: 35 }, (_, i) => i + 1).map((w) => {
+                  const count = slots.filter(
+                    (s) =>
+                      (selectedTeacher === "Tất cả" || s.teacher_name === selectedTeacher) &&
+                      (s.from_week || 1) <= w &&
+                      (s.to_week || 35) >= w
+                  ).length;
+                  return (
+                    <SelectItem key={w} value={String(w)}>
+                      Tuần {w} {count > 0 ? `(${count} tiết)` : "(Trống)"}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -701,96 +771,253 @@ export function TKBTab() {
 
       {/* View 1: Weekly Schedule Grid */}
       {viewMode === "grid" && (
-        <div className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[650px] text-center text-xs border-collapse">
-              <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-[11px]">
-                <tr>
-                  <th className="px-3 py-3 w-24 border-r border-white/20">Tiết / Buổi</th>
-                  {DAYS.map((d) => (
-                    <th
-                      key={d.num}
-                      className="px-3 py-3 border-r border-white/20 last:border-r-0"
+        <div className="space-y-3">
+          {/* MOBILE VIEW (block md:hidden): Vertical Stack of All Days (Thứ Hai -> Thứ Bảy) */}
+          <div className="block md:hidden space-y-4">
+            {DAYS.map((d) => {
+              const daySlots = allFilteredTeacherSlots.filter((s) => s.day_of_week === d.num);
+              const morningPeriods = [1, 2, 3, 4, 5];
+              const afternoonPeriods = [6, 7, 8, 9, 10];
+
+              return (
+                <div
+                  key={`day-card-${d.num}`}
+                  id={`tkb-day-${d.num}`}
+                  className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-xl overflow-hidden shadow-2xs"
+                >
+                  {/* Header for Day */}
+                  <div className="px-3.5 py-2.5 bg-gradient-to-r from-emerald-50 to-slate-50 dark:from-emerald-950/40 dark:to-[#161b22] border-b border-[#d0d7de] dark:border-[#30363d] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                      <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                        {d.label}
+                      </h3>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        ({daySlots.length} tiết)
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleOpenAddSlot(d.num)}
+                      className="h-6 px-2 text-[11px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1 font-medium"
                     >
-                      {d.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#d0d7de] dark:divide-[#30363d]">
-                {/* Sáng: Tiết 1..5 */}
-                {sessionFilter !== "afternoon" && (
-                  <>
-                    <tr className="bg-gradient-to-r from-amber-50 to-emerald-50/50 dark:from-amber-950/30 dark:to-emerald-950/20 text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider border-b border-[#d0d7de] dark:border-[#30363d]">
-                      <td colSpan={7} className="py-2 px-4 text-left">
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <span className="text-amber-500 text-sm">☀️</span>
-                            <span>BUỔI SÁNG (Tiết 1 → 5)</span>
-                          </span>
-                          <span className="text-[11px] font-normal text-amber-800/80 dark:text-amber-300/80 lowercase">
-                            {morningSlotsCount} tiết đã xếp
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                    {[1, 2, 3, 4, 5].map((period) => (
-                      <tr key={period} className="hover:bg-slate-50/60 dark:hover:bg-[#21262d]/40">
-                        <td className="px-2.5 py-2.5 font-bold text-slate-700 dark:text-slate-200 border-r border-[#d0d7de] dark:border-[#30363d] bg-amber-50/20 dark:bg-amber-950/10">
-                          <div>Tiết {period}</div>
-                          <div className="text-[9px] text-amber-600 dark:text-amber-400 font-normal">Sáng</div>
-                        </td>
-                        {DAYS.map((d) => {
-                          const slot = getSlot(d.num, period);
+                      <Plus className="w-3 h-3" /> Thêm tiết
+                    </Button>
+                  </div>
+
+                  {/* Sáng: Tiết 1..5 */}
+                  {sessionFilter !== "afternoon" && (
+                    <div className="p-3 border-b border-slate-100 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-300">
+                        <span className="flex items-center gap-1.5">
+                          <span>☀️</span>
+                          <span>BUỔI SÁNG (Tiết 1 → 5)</span>
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {morningPeriods.map((p) => {
+                          const slot = getSlot(d.num, p);
+                          if (!slot) {
+                            return (
+                              <div
+                                key={`m-morning-${d.num}-${p}`}
+                                className="p-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400 bg-slate-50/40 dark:bg-[#161b22]/30"
+                              >
+                                <span className="font-mono font-medium text-[11px] text-slate-500">
+                                  Tiết {p}
+                                </span>
+                                <span className="italic text-[11px] text-slate-400/80">(Trống)</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenAddSlot(d.num, p)}
+                                  className="h-6 px-2 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-0.5"
+                                >
+                                  <Plus className="w-3 h-3" /> Thêm
+                                </Button>
+                              </div>
+                            );
+                          }
+
                           return (
-                            <td
-                              key={d.num}
-                              onClick={() => (slot ? handleOpenEditSlot(slot) : handleOpenAddSlot(d.num, period))}
-                              className="px-2 py-2 border-r border-[#d0d7de] dark:border-[#30363d] last:border-r-0 h-14 align-middle cursor-pointer transition-colors hover:bg-slate-100/60 dark:hover:bg-[#30363d]/40 group"
+                            <div
+                              key={`m-slot-${slot.id}`}
+                              className="p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 space-y-1.5"
                             >
-                              {slot ? (
-                                <div className="p-1.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 space-y-0.5 relative shadow-2xs">
-                                  <p className="font-bold text-xs">{slot.class_name}</p>
-                                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded bg-white dark:bg-[#21262d] font-bold text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-mono text-[11px]">
+                                    Tiết {slot.period}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-600 text-white text-[11px]">
+                                    {slot.class_name}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-medium text-[11px]">
                                     {slot.subject}
-                                  </p>
+                                  </span>
                                 </div>
-                              ) : (
-                                <div className="text-slate-300 dark:text-slate-700 text-xs group-hover:text-emerald-500 font-semibold">
-                                  +
+                                <div className="flex items-center gap-0.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleOpenEditSlot(slot)}
+                                    className="h-6 w-6 text-slate-400 hover:text-emerald-600"
+                                    title="Sửa"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteSlot(slot.id)}
+                                    className="h-6 w-6 text-slate-400 hover:text-red-600"
+                                    title="Xóa"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
                                 </div>
-                              )}
-                            </td>
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between">
+                                <span>Áp dụng: Tuần {slot.from_week || 1} → {slot.to_week || 35}</span>
+                                <span>{slot.teacher_name}</span>
+                              </div>
+                            </div>
                           );
                         })}
-                      </tr>
-                    ))}
-                  </>
-                )}
+                      </div>
+                    </div>
+                  )}
 
-                {/* Chiều: Tiết 6..10 (Tiết 1..5 Chiều) */}
-                {sessionFilter !== "morning" && (
-                  <>
-                    <tr className="bg-gradient-to-r from-indigo-50 to-blue-50/50 dark:from-indigo-950/30 dark:to-blue-950/20 text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wider border-t-2 border-b border-[#d0d7de] dark:border-[#30363d]">
-                      <td colSpan={7} className="py-2 px-4 text-left">
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <span className="text-indigo-500 text-sm">🌙</span>
-                            <span>BUỔI CHIỀU (Tiết 1 → 5 Chiều / Tiết 6 → 10)</span>
-                          </span>
-                          <span className="text-[11px] font-normal text-indigo-800/80 dark:text-indigo-300/80 lowercase">
-                            {afternoonSlotsCount} tiết đã xếp
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                    {[6, 7, 8, 9, 10].map((period) => {
-                      const chieuNum = period - 5;
-                      return (
+                  {/* Chiều: Tiết 6..10 */}
+                  {sessionFilter !== "morning" && (
+                    <div className="p-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-300">
+                        <span className="flex items-center gap-1.5">
+                          <span>🌙</span>
+                          <span>BUỔI CHIỀU (Tiết 1 → 5 Chiều / Tiết 6 → 10)</span>
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {afternoonPeriods.map((p) => {
+                          const slot = getSlot(d.num, p);
+                          const chieuNum = p - 5;
+                          if (!slot) {
+                            return (
+                              <div
+                                key={`m-afternoon-${d.num}-${p}`}
+                                className="p-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400 bg-slate-50/40 dark:bg-[#161b22]/30"
+                              >
+                                <span className="font-mono font-medium text-[11px] text-slate-500">
+                                  Tiết {p} (T{chieuNum} Chiều)
+                                </span>
+                                <span className="italic text-[11px] text-slate-400/80">(Trống)</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenAddSlot(d.num, p)}
+                                  className="h-6 px-2 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 gap-0.5"
+                                >
+                                  <Plus className="w-3 h-3" /> Thêm
+                                </Button>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div
+                              key={`m-slot-${slot.id}`}
+                              className="p-2.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded bg-white dark:bg-[#21262d] font-bold text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 font-mono text-[11px]">
+                                    Tiết {slot.period} (T{chieuNum} Chiều)
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-full font-bold bg-indigo-600 text-white text-[11px]">
+                                    {slot.class_name}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-medium text-[11px]">
+                                    {slot.subject}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-0.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleOpenEditSlot(slot)}
+                                    className="h-6 w-6 text-slate-400 hover:text-indigo-600"
+                                    title="Sửa"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteSlot(slot.id)}
+                                    className="h-6 w-6 text-slate-400 hover:text-red-600"
+                                    title="Xóa"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between">
+                                <span>Áp dụng: Tuần {slot.from_week || 1} → {slot.to_week || 35}</span>
+                                <span>{slot.teacher_name}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* DESKTOP VIEW (hidden md:block): Multi-Column Schedule Matrix */}
+          <div className="hidden md:block bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg overflow-hidden shadow-2xs">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full min-w-[650px] text-center text-xs border-collapse">
+                <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-[11px]">
+                  <tr>
+                    <th className="px-3 py-3 w-24 border-r border-white/20">Tiết / Buổi</th>
+                    {DAYS.map((d) => (
+                      <th
+                        key={d.num}
+                        className="px-3 py-3 border-r border-white/20 last:border-r-0"
+                      >
+                        {d.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#d0d7de] dark:divide-[#30363d]">
+                  {/* Sáng: Tiết 1..5 */}
+                  {sessionFilter !== "afternoon" && (
+                    <>
+                      <tr className="bg-gradient-to-r from-amber-50 to-emerald-50/50 dark:from-amber-950/30 dark:to-emerald-950/20 text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider border-b border-[#d0d7de] dark:border-[#30363d]">
+                        <td colSpan={7} className="py-2 px-4 text-left">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <span className="text-amber-500 text-sm">☀️</span>
+                              <span>BUỔI SÁNG (Tiết 1 → 5)</span>
+                            </span>
+                            <span className="text-[11px] font-normal text-amber-800/80 dark:text-amber-300/80 lowercase">
+                              {morningSlotsCount} tiết đã xếp
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {[1, 2, 3, 4, 5].map((period) => (
                         <tr key={period} className="hover:bg-slate-50/60 dark:hover:bg-[#21262d]/40">
-                          <td className="px-2.5 py-2.5 font-bold text-slate-700 dark:text-slate-200 border-r border-[#d0d7de] dark:border-[#30363d] bg-indigo-50/20 dark:bg-indigo-950/10">
+                          <td className="px-2.5 py-2.5 font-bold text-slate-700 dark:text-slate-200 border-r border-[#d0d7de] dark:border-[#30363d] bg-amber-50/20 dark:bg-amber-950/10">
                             <div>Tiết {period}</div>
-                            <div className="text-[9px] text-indigo-600 dark:text-indigo-400 font-normal">Tiết {chieuNum} Chiều</div>
+                            <div className="text-[9px] text-amber-600 dark:text-amber-400 font-normal">Sáng</div>
                           </td>
                           {DAYS.map((d) => {
                             const slot = getSlot(d.num, period);
@@ -801,14 +1028,21 @@ export function TKBTab() {
                                 className="px-2 py-2 border-r border-[#d0d7de] dark:border-[#30363d] last:border-r-0 h-14 align-middle cursor-pointer transition-colors hover:bg-slate-100/60 dark:hover:bg-[#30363d]/40 group"
                               >
                                 {slot ? (
-                                  <div className="p-1.5 rounded bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300 space-y-0.5 shadow-2xs">
-                                    <p className="font-bold text-xs">{slot.class_name}</p>
-                                    <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium truncate">
+                                  <div className="p-1.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 space-y-0.5 relative shadow-2xs">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <p className="font-bold text-xs">{slot.class_name}</p>
+                                      {(slot.from_week !== 1 || slot.to_week !== 35) && (
+                                        <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-semibold" title={`Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}>
+                                          T{slot.from_week}-{slot.to_week}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate">
                                       {slot.subject}
                                     </p>
                                   </div>
                                 ) : (
-                                  <div className="text-slate-300 dark:text-slate-700 text-xs group-hover:text-indigo-500 font-semibold">
+                                  <div className="text-slate-300 dark:text-slate-700 text-xs group-hover:text-emerald-500 font-semibold">
                                     +
                                   </div>
                                 )}
@@ -816,99 +1050,247 @@ export function TKBTab() {
                             );
                           })}
                         </tr>
-                      );
-                    })}
-                  </>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-2.5 bg-slate-50 dark:bg-[#0d1117] border-t border-[#d0d7de] dark:border-[#30363d] text-[11px] text-slate-400 flex items-center justify-between">
-            <span>💡 Nhấn vào ô để thêm tiết hoặc chỉnh sửa trực tiếp trên ma trận</span>
-            <span className="font-medium text-emerald-600">Sáng: Tiết 1-5 | Chiều: Tiết 6-10 (Tiết 1-5 Chiều)</span>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Chiều: Tiết 6..10 (Tiết 1..5 Chiều) */}
+                  {sessionFilter !== "morning" && (
+                    <>
+                      <tr className="bg-gradient-to-r from-indigo-50 to-blue-50/50 dark:from-indigo-950/30 dark:to-blue-950/20 text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wider border-t-2 border-b border-[#d0d7de] dark:border-[#30363d]">
+                        <td colSpan={7} className="py-2 px-4 text-left">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <span className="text-indigo-500 text-sm">🌙</span>
+                              <span>BUỔI CHIỀU (Tiết 1 → 5 Chiều / Tiết 6 → 10)</span>
+                            </span>
+                            <span className="text-[11px] font-normal text-indigo-800/80 dark:text-indigo-300/80 lowercase">
+                              {afternoonSlotsCount} tiết đã xếp
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {[6, 7, 8, 9, 10].map((period) => {
+                        const chieuNum = period - 5;
+                        return (
+                          <tr key={period} className="hover:bg-slate-50/60 dark:hover:bg-[#21262d]/40">
+                            <td className="px-2.5 py-2.5 font-bold text-slate-700 dark:text-slate-200 border-r border-[#d0d7de] dark:border-[#30363d] bg-indigo-50/20 dark:bg-indigo-950/10">
+                              <div>Tiết {period}</div>
+                              <div className="text-[9px] text-indigo-600 dark:text-indigo-400 font-normal">Tiết {chieuNum} Chiều</div>
+                            </td>
+                            {DAYS.map((d) => {
+                              const slot = getSlot(d.num, period);
+                              return (
+                                <td
+                                  key={d.num}
+                                  onClick={() => (slot ? handleOpenEditSlot(slot) : handleOpenAddSlot(d.num, period))}
+                                  className="px-2 py-2 border-r border-[#d0d7de] dark:border-[#30363d] last:border-r-0 h-14 align-middle cursor-pointer transition-colors hover:bg-slate-100/60 dark:hover:bg-[#30363d]/40 group"
+                                >
+                                  {slot ? (
+                                    <div className="p-1.5 rounded bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300 space-y-0.5 shadow-2xs">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <p className="font-bold text-xs">{slot.class_name}</p>
+                                        {(slot.from_week !== 1 || slot.to_week !== 35) && (
+                                          <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 font-semibold" title={`Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}>
+                                            T{slot.from_week}-{slot.to_week}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium truncate">
+                                        {slot.subject}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className="text-slate-300 dark:text-slate-700 text-xs group-hover:text-indigo-500 font-semibold">
+                                      +
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-2.5 bg-slate-50 dark:bg-[#0d1117] border-t border-[#d0d7de] dark:border-[#30363d] text-[11px] text-slate-400 flex items-center justify-between flex-wrap gap-2">
+              <span>💡 Nhấn vào ô để thêm tiết hoặc chỉnh sửa trực tiếp trên ma trận</span>
+              <span className="font-medium text-emerald-600">
+                {selectedWeekFilter === "all" ? "Đang hiển thị toàn bộ các tuần" : `Đang lọc theo Tuần ${selectedWeekFilter}`}
+              </span>
+            </div>
           </div>
         </div>
       )}
 
       {/* View 2: List / Table View */}
       {viewMode === "list" && (
-        <div className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[600px] text-left text-xs">
-              <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-[11px]">
-                <tr>
-                  <th className="px-4 py-3 border-r border-white/20">Thứ</th>
-                  <th className="px-4 py-3 text-center border-r border-white/20">Tiết TKB</th>
-                  <th className="px-4 py-3 text-center border-r border-white/20">Buổi</th>
-                  <th className="px-4 py-3 font-bold border-r border-white/20">Lớp</th>
-                  <th className="px-4 py-3 border-r border-white/20">Môn học</th>
-                  <th className="px-4 py-3 border-r border-white/20">Giáo viên</th>
-                  <th className="px-4 py-3 w-28 text-right whitespace-nowrap">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#d0d7de] dark:divide-[#30363d]">
-                {filteredSlots.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
-                      Chưa có tiết dạy nào được ghi nhận.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSlots.map((slot) => {
-                    const dayLabel = DAYS.find((d) => d.num === slot.day_of_week)?.label || `Thứ ${slot.day_of_week}`;
-                    const isMorning = slot.period <= 5 || slot.session === "Sáng";
-                    return (
-                      <tr key={slot.id} className="hover:bg-slate-50 dark:hover:bg-[#21262d]/50">
-                        <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-300">
+        <div className="space-y-3">
+          {/* MOBILE VIEW (block md:hidden): Touch-Friendly Cards */}
+          <div className="block md:hidden space-y-2.5">
+            {filteredSlots.length === 0 ? (
+              <div className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-xl p-8 text-center text-slate-400 text-xs">
+                Chưa có tiết dạy nào được ghi nhận.
+              </div>
+            ) : (
+              filteredSlots.map((slot) => {
+                const dayLabel = DAYS.find((d) => d.num === slot.day_of_week)?.label || `Thứ ${slot.day_of_week}`;
+                const isMorning = slot.period <= 5 || slot.session === "Sáng";
+                const fw = slot.from_week || 1;
+                const tw = slot.to_week || 35;
+
+                return (
+                  <div
+                    key={`mobile-slot-list-${slot.id}`}
+                    className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-xl p-3 space-y-2 shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
                           {dayLabel}
-                        </td>
-                        <td className="px-4 py-2.5 text-center font-bold text-emerald-600">
-                          Tiết {slot.period} {slot.period > 5 && `(Tiết ${slot.period - 5} Chiều)`}
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          {isMorning ? (
-                            <Badge variant="outline" className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 text-[10px]">
-                              ☀️ Sáng
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-300 text-[10px]">
-                              🌙 Chiều
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 font-bold text-blue-600 dark:text-blue-400">
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#21262d] text-emerald-700 dark:text-emerald-400 font-bold text-[11px] font-mono border border-slate-200 dark:border-slate-700">
+                          Tiết {slot.period} {slot.period > 5 && `(T${slot.period - 5} Chiều)`}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[11px]">
                           {slot.class_name}
-                        </td>
-                        <td className="px-4 py-2.5 font-medium">{slot.subject}</td>
-                        <td className="px-4 py-2.5 text-slate-500">{slot.teacher_name}</td>
-                        <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleOpenEditSlot(slot)}
-                              className="h-7 w-7 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                              title="Sửa tiết dạy"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteSlot(slot.id)}
-                              className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                              title="Xóa tiết dạy"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenEditSlot(slot)}
+                          className="h-7 w-7 text-slate-400 hover:text-emerald-600"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteSlot(slot.id)}
+                          className="h-7 w-7 text-slate-400 hover:text-red-600"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                          Môn: <strong>{slot.subject}</strong>
+                        </span>
+                        {isMorning ? (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300">
+                            ☀️ Sáng
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-300">
+                            🌙 Chiều
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        Tuần {fw} → {tw}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* DESKTOP VIEW (hidden md:block): Multi-Column List Table */}
+          <div className="hidden md:block bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg overflow-hidden shadow-2xs">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full min-w-[700px] text-left text-xs">
+                <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-[11px]">
+                  <tr>
+                    <th className="px-4 py-3 border-r border-white/20">Thứ</th>
+                    <th className="px-4 py-3 text-center border-r border-white/20">Tiết TKB</th>
+                    <th className="px-4 py-3 text-center border-r border-white/20">Buổi</th>
+                    <th className="px-4 py-3 font-bold border-r border-white/20">Lớp</th>
+                    <th className="px-4 py-3 border-r border-white/20">Môn học</th>
+                    <th className="px-4 py-3 text-center border-r border-white/20">Áp dụng</th>
+                    <th className="px-4 py-3 border-r border-white/20">Giáo viên</th>
+                    <th className="px-4 py-3 w-28 text-right whitespace-nowrap">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#d0d7de] dark:divide-[#30363d]">
+                  {filteredSlots.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        Chưa có tiết dạy nào được ghi nhận.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredSlots.map((slot) => {
+                      const dayLabel = DAYS.find((d) => d.num === slot.day_of_week)?.label || `Thứ ${slot.day_of_week}`;
+                      const isMorning = slot.period <= 5 || slot.session === "Sáng";
+                      const fw = slot.from_week || 1;
+                      const tw = slot.to_week || 35;
+                      return (
+                        <tr key={slot.id} className="hover:bg-slate-50 dark:hover:bg-[#21262d]/50">
+                          <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-300">
+                            {dayLabel}
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-bold text-emerald-600">
+                            Tiết {slot.period} {slot.period > 5 && `(Tiết ${slot.period - 5} Chiều)`}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            {isMorning ? (
+                              <Badge variant="outline" className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 text-[10px]">
+                                ☀️ Sáng
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-300 text-[10px]">
+                                🌙 Chiều
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 font-bold text-blue-600 dark:text-blue-400">
+                            {slot.class_name}
+                          </td>
+                          <td className="px-4 py-2.5 font-medium">{slot.subject}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <Badge variant="secondary" className="text-[10px] font-mono">
+                              Tuần {fw} → {tw}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-500">{slot.teacher_name}</td>
+                          <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleOpenEditSlot(slot)}
+                                className="h-7 w-7 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                title="Sửa tiết dạy"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteSlot(slot.id)}
+                                className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                title="Xóa tiết dạy"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -931,6 +1313,37 @@ export function TKBTab() {
                 onChange={(e) => setSlotForm({ ...slotForm, teacher_name: e.target.value })}
                 className="h-8 text-xs w-full"
               />
+            </div>
+
+            {/* Week Range Selector */}
+            <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg space-y-2">
+              <label className="font-semibold block text-emerald-900 dark:text-emerald-200">
+                📅 Khoảng tuần áp dụng tiết dạy
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[11px] text-slate-500 block mb-0.5">Từ Tuần:</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={35}
+                    value={slotForm.from_week}
+                    onChange={(e) => setSlotForm({ ...slotForm, from_week: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="h-8 text-xs bg-white dark:bg-[#161b22]"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-slate-500 block mb-0.5">Đến Tuần:</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={35}
+                    value={slotForm.to_week}
+                    onChange={(e) => setSlotForm({ ...slotForm, to_week: Math.max(1, parseInt(e.target.value) || 35) })}
+                    className="h-8 text-xs bg-white dark:bg-[#161b22]"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Session Selector (Buổi Sáng / Buổi Chiều) */}
@@ -1113,114 +1526,107 @@ export function TKBTab() {
           <DialogHeader>
             <DialogTitle className="text-sm font-bold flex items-center gap-2">
               <Upload className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Nạp TKB (File hoặc Dán Ctrl+V)</span>
+              <span>Nạp Thời Khóa Biểu Theo Khoảng Tuần</span>
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-xs">
-            <div>
-              <label className="font-semibold block mb-1">Tên giáo viên sở hữu TKB</label>
-              <Input
-                value={uploadTeacherName}
-                onChange={(e) => setUploadTeacherName(e.target.value)}
-                placeholder="Ví dụ: Nguyễn Văn A"
-                className="h-8 text-xs w-full"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="font-semibold block mb-1">Tên giáo viên sở hữu TKB</label>
+                <Input
+                  value={uploadTeacherName}
+                  onChange={(e) => setUploadTeacherName(e.target.value)}
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  className="h-8 text-xs w-full"
+                />
+              </div>
+
+              {/* Week Range Selection for Upload */}
+              <div>
+                <label className="font-semibold block mb-1 text-emerald-700 dark:text-emerald-400">
+                  Áp dụng từ Tuần → Đến Tuần:
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={35}
+                    value={uploadFromWeek}
+                    onChange={(e) => setUploadFromWeek(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="h-8 text-xs text-center font-bold"
+                  />
+                  <span className="font-bold text-slate-400">→</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={35}
+                    value={uploadToWeek}
+                    onChange={(e) => setUploadToWeek(Math.max(1, parseInt(e.target.value) || 35))}
+                    className="h-8 text-xs text-center font-bold"
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* Gemini API Key Configuration Alert / Input */}
-            <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800/60 rounded-lg space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
-              <div className="flex items-center justify-between font-bold">
-                <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                  Gemini API Key & AI Vision OCR (Đọc ma trận TKB từ ảnh chụp & PDF):
-                </span>
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-normal"
-                >
-                  Lấy Key miễn phí ↗
-                </a>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                <div className="sm:col-span-2 flex items-center gap-2">
-                  <Input
-                    type="password"
-                    placeholder="Dán mã API Key (AIzaSy...) vào đây..."
-                    value={geminiApiKey}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setGeminiApiKey(val);
-                      if (typeof window !== "undefined") {
-                        localStorage.setItem("gemini_api_key", val);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      if (e.target.value.trim()) {
-                        handleSaveAndSyncKey(e.target.value);
-                      }
-                    }}
-                    className="h-8 text-xs bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 flex-1"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      if (!geminiApiKey.trim()) {
-                        toast.error("Vui lòng nhập API Key");
-                        return;
-                      }
-                      try {
-                        await handleSaveAndSyncKey(geminiApiKey);
-                        const res = await apiClient<{ success: boolean; message: string }>("/api/gemini/test", {
-                          method: "POST",
-                          body: JSON.stringify({ api_key: geminiApiKey.trim() }),
-                        });
-                        if (res.success) {
-                          toast.success("✅ " + res.message);
-                        } else {
-                          toast.error("❌ " + res.message);
-                        }
-                      } catch (err: any) {
-                        toast.error(err?.message || "Lỗi kiểm tra key");
-                      }
-                    }}
-                    className="h-8 text-xs shrink-0 bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200"
-                  >
-                    Lưu & Test Key
-                  </Button>
-                </div>
-                <div>
-                  <Select
-                    value={selectedGeminiModel}
-                    onValueChange={(val) => {
-                      setSelectedGeminiModel(val);
-                      if (typeof window !== "undefined") {
-                        localStorage.setItem("gemini_selected_model", val);
-                      }
-                      toast.success(`Đã chọn mô hình: ${val}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-[11px] bg-white dark:bg-[#0d1117] border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200">
-                      <SelectValue placeholder="Chọn Model AI" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gemini-2.0-flash-lite">⚡ 2.0 Flash Lite (Siêu tốc)</SelectItem>
-                      <SelectItem value="gemini-2.0-flash">🚀 2.0 Flash (Mới nhất)</SelectItem>
-                      <SelectItem value="gemini-1.5-flash-8b">⚡ 1.5 Flash 8B (Nhẹ)</SelectItem>
-                      <SelectItem value="gemini-1.5-flash">⚡ 1.5 Flash (Chuẩn)</SelectItem>
-                      <SelectItem value="gemini-1.5-pro">💎 1.5 Pro (Độ nét cao)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-amber-700/80 dark:text-amber-400/80 pt-0.5">
-                <span>* Tự động gửi API Key và Model được chọn cho mọi lượt OCR Thời Khóa Biểu.</span>
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400">Model: {selectedGeminiModel}</span>
-              </div>
+            {/* Quick Presets for Week Ranges */}
+            <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 dark:bg-[#0d1117] rounded-lg border border-[#d0d7de] dark:border-[#30363d]">
+              <span className="text-[11px] font-semibold text-slate-500 mr-1">Mẫu nhanh:</span>
+              <button
+                type="button"
+                onClick={() => { setUploadFromWeek(1); setUploadToWeek(35); }}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                  uploadFromWeek === 1 && uploadToWeek === 35
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                Cả năm (Tuần 1 - 35)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUploadFromWeek(1); setUploadToWeek(18); }}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                  uploadFromWeek === 1 && uploadToWeek === 18
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                Học kỳ 1 (Tuần 1 - 18)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUploadFromWeek(19); setUploadToWeek(35); }}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                  uploadFromWeek === 19 && uploadToWeek === 35
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                Học kỳ 2 (Tuần 19 - 35)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUploadFromWeek(1); setUploadToWeek(9); }}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                  uploadFromWeek === 1 && uploadToWeek === 9
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                Giữa HK1 (Tuần 1 - 9)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUploadFromWeek(10); setUploadToWeek(18); }}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                  uploadFromWeek === 10 && uploadToWeek === 18
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                Cuối HK1 (Tuần 10 - 18)
+              </button>
             </div>
 
             {/* Tabs for File vs Clipboard Text vs Clipboard Image */}
