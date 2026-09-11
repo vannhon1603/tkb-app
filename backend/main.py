@@ -25,6 +25,8 @@ from routers import (
     tasks_router,
 )
 
+from services.keep_alive import keep_alive_service
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing Database...")
@@ -33,7 +35,13 @@ async def lifespan(app: FastAPI):
         logger.info("Database schema initialized successfully.")
     except Exception as e:
         logger.error(f"Database initialization error: {e}")
+    
+    # Start Keep-Alive Background Service for Render.com free plan
+    keep_alive_service.start()
+    
     yield
+    
+    keep_alive_service.stop()
     logger.info("Application shutdown.")
 
 app = FastAPI(

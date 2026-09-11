@@ -5,6 +5,7 @@ import Script from "next/script";
 import { Toaster } from "react-hot-toast";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/components/AuthProvider";
+import { BackendWarmupProvider } from "@/components/BackendWarmup";
 import "@/app/globals.css";
 
 const beVietnam = Be_Vietnam_Pro({
@@ -46,18 +47,20 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <Script
-              src="https://accounts.google.com/gsi/client"
-              strategy="afterInteractive"
-            />
-            {children}
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                className: "!bg-white !text-slate-800 dark:!bg-[#161b22] dark:!text-slate-100 !border !border-[#d0d7de] dark:!border-[#30363d] !text-xs",
-                duration: 2500,
-              }}
-            />
+            <BackendWarmupProvider>
+              <Script
+                src="https://accounts.google.com/gsi/client"
+                strategy="afterInteractive"
+              />
+              {children}
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  className: "!bg-white !text-slate-800 dark:!bg-[#161b22] dark:!text-slate-100 !border !border-[#d0d7de] dark:!border-[#30363d] !text-xs",
+                  duration: 2500,
+                }}
+              />
+            </BackendWarmupProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

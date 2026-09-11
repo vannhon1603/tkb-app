@@ -16,3 +16,7 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: KEEP_ALIVE_ENABLED
+        value: "true"
+      - key: KEEP_ALIVE_INTERVAL
+        value: "600"
