@@ -23,6 +23,11 @@ import {
   Image as ImageIcon,
   Camera,
   X,
+  Copy,
+  Scissors,
+  ArrowLeftRight,
+  Check,
+  GripVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +114,22 @@ export function TKBTab() {
     from_week: 1,
     to_week: 35,
   });
+
+  // Drag and Drop & Copy-Paste State
+  const [draggedSlot, setDraggedSlot] = useState<TKBSlot | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ day: number; period: number } | null>(null);
+  const [isDragCopy, setIsDragCopy] = useState(false);
+  const [copiedSlot, setCopiedSlot] = useState<{ slot: TKBSlot; isCut?: boolean } | null>(null);
+  const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    slot?: TKBSlot;
+    day?: number;
+    period?: number;
+  } | null>(null);
+  const isDraggingRef = useRef(false);
 
   const checkGeminiStatus = async () => {
     try {
@@ -221,6 +242,28 @@ export function TKBTab() {
       window.removeEventListener("paste", handleGlobalPaste);
     };
   }, []);
+
+  // Global click & Escape handler for context menu and copy state
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setContextMenu(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setContextMenu(null);
+        if (copiedSlot) {
+          setCopiedSlot(null);
+          toast("Đã hủy sao chép", { icon: "ℹ️" });
+        }
+      }
+    };
+    window.addEventListener("click", handleGlobalClick);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [copiedSlot]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -563,6 +606,372 @@ export function TKBTab() {
     return slotMap.get(`${day}-${period}`);
   };
 
+  // --- COPY & PASTE HANDLERS ---
+  const handleCopySlot = (slot: TKBSlot, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setCopiedSlot({ slot, isCut: false });
+    setSelectedSlotId(slot.id);
+    setContextMenu(null);
+    toast.success(`📋 Đã sao chép tiết ${slot.class_name} (${slot.subject})! Bấm vào ô trống để dán.`);
+  };
+
+  const handleCutSlot = (slot: TKBSlot, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setCopiedSlot({ slot, isCut: true });
+    setSelectedSlotId(slot.id);
+    setContextMenu(null);
+    toast(`✂️ Đang cắt tiết ${slot.class_name}. Bấm vào ô trống để di chuyển đến.`, { icon: "✂️" });
+  };
+
+  const handleCancelCopy = () => {
+    setCopiedSlot(null);
+    setSelectedSlotId(null);
+    toast("Đã hủy sao chép", { icon: "ℹ️" });
+  };
+
+  const handlePasteSlot = async (day: number, period: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    if (!copiedSlot) return;
+
+    const session = period <= 5 ? "Sáng" : "Chiều";
+    const srcSlot = copiedSlot.slot;
+    const targetExisting = getSlot(day, period);
+
+    // If target has a slot and it's not the same slot
+    if (targetExisting && targetExisting.id !== srcSlot.id) {
+      if (copiedSlot.isCut) {
+        // Swap slots between origin and target!
+        const confirmSwap = confirm(
+          `Hoán đổi vị trí giữa tiết [${srcSlot.class_name}] và tiết [${targetExisting.class_name}]?`
+        );
+        if (!confirmSwap) return;
+
+        const originDay = srcSlot.day_of_week;
+        const originPeriod = srcSlot.period;
+        const originSession = originPeriod <= 5 ? "Sáng" : "Chiều";
+
+        setSlots((prev) =>
+          prev.map((s) => {
+            if (s.id === srcSlot.id) {
+              return { ...s, day_of_week: day, period, session };
+            }
+            if (s.id === targetExisting.id) {
+              return { ...s, day_of_week: originDay, period: originPeriod, session: originSession };
+            }
+            return s;
+          })
+        );
+
+        try {
+          await Promise.all([
+            apiClient(`/api/tkb/${srcSlot.id}`, {
+              method: "PUT",
+              body: JSON.stringify({ day_of_week: day, period, session }),
+            }),
+            apiClient(`/api/tkb/${targetExisting.id}`, {
+              method: "PUT",
+              body: JSON.stringify({ day_of_week: originDay, period: originPeriod, session: originSession }),
+            }),
+          ]);
+          setCopiedSlot(null);
+          toast.success(`Đã hoán đổi vị trí: [${srcSlot.class_name}] ⇄ [${targetExisting.class_name}]!`);
+          loadTKB();
+        } catch (err: any) {
+          toast.error(err?.message || "Lỗi hoán đổi tiết dạy");
+          loadTKB();
+        }
+        return;
+      }
+
+      // Copy mode -> Overwrite confirmation
+      const confirmOverwrite = confirm(
+        `Ô này đã có tiết [${targetExisting.class_name} - ${targetExisting.subject}]. Bạn có muốn ghi đè tiết này không?`
+      );
+      if (!confirmOverwrite) return;
+    }
+
+    try {
+      if (copiedSlot.isCut) {
+        if (targetExisting && targetExisting.id !== srcSlot.id) {
+          await apiClient(`/api/tkb/${targetExisting.id}`, { method: "DELETE" });
+        }
+        const updated = await apiClient<TKBSlot>(`/api/tkb/${srcSlot.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            day_of_week: day,
+            period: period,
+            session,
+          }),
+        });
+        setSlots((prev) =>
+          prev
+            .filter((s) => (targetExisting ? s.id !== targetExisting.id : true))
+            .map((s) => (s.id === updated.id ? updated : s))
+        );
+        setCopiedSlot(null);
+        toast.success(`Đã chuyển tiết ${srcSlot.class_name} đến Thứ ${day} - Tiết ${period}!`);
+      } else {
+        const newSlotData = {
+          teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : srcSlot.teacher_name,
+          class_name: srcSlot.class_name,
+          subject: srcSlot.subject,
+          day_of_week: day,
+          period: period,
+          session,
+          room: srcSlot.room || "",
+          semester: srcSlot.semester || "Học kỳ 1",
+          from_week: selectedWeekFilter !== "all" ? selectedWeekFilter : (srcSlot.from_week || 1),
+          to_week: selectedWeekFilter !== "all" ? selectedWeekFilter : (srcSlot.to_week || 35),
+        };
+
+        if (targetExisting) {
+          const updated = await apiClient<TKBSlot>(`/api/tkb/${targetExisting.id}`, {
+            method: "PUT",
+            body: JSON.stringify(newSlotData),
+          });
+          setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+          toast.success(`Đã dán ghi đè tiết ${newSlotData.class_name} vào Thứ ${day} - Tiết ${period}!`);
+        } else {
+          const created = await apiClient<TKBSlot>("/api/tkb", {
+            method: "POST",
+            body: JSON.stringify(newSlotData),
+          });
+          setSlots((prev) => [...prev, created]);
+          toast.success(`Đã dán tiết ${created.class_name} vào Thứ ${day} - Tiết ${period}!`);
+        }
+      }
+      loadTKB();
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi khi dán tiết dạy");
+    }
+  };
+
+  // --- DRAG AND DROP HANDLERS ---
+  const handleDragStart = (slot: TKBSlot, e: React.DragEvent) => {
+    isDraggingRef.current = true;
+    setDraggedSlot(slot);
+    setSelectedSlotId(slot.id);
+    const isCopy = e.ctrlKey || e.altKey;
+    setIsDragCopy(isCopy);
+    e.dataTransfer.effectAllowed = isCopy ? "copy" : "move";
+    try {
+      e.dataTransfer.setData("text/plain", JSON.stringify({ id: slot.id }));
+    } catch {}
+  };
+
+  const handleDragOver = (e: React.DragEvent, day: number, period: number) => {
+    e.preventDefault();
+    const isCopy = e.ctrlKey || e.altKey;
+    setIsDragCopy(isCopy);
+    e.dataTransfer.dropEffect = isCopy ? "copy" : "move";
+    if (!dragOverCell || dragOverCell.day !== day || dragOverCell.period !== period) {
+      setDragOverCell({ day, period });
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    const currentTarget = e.currentTarget;
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (!currentTarget.contains(relatedTarget)) {
+      setDragOverCell(null);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedSlot(null);
+    setDragOverCell(null);
+    setIsDragCopy(false);
+    setTimeout(() => {
+      isDraggingRef.current = false;
+    }, 150);
+  };
+
+  const handleDrop = async (
+    e: React.DragEvent,
+    targetDay: number,
+    targetPeriod: number,
+    existingSlot?: TKBSlot
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!draggedSlot) {
+      handleDragEnd();
+      return;
+    }
+
+    const currentDragged = draggedSlot;
+    const isCopy = e.ctrlKey || e.altKey || isDragCopy;
+    const targetSession = targetPeriod <= 5 ? "Sáng" : "Chiều";
+
+    handleDragEnd();
+
+    // Same cell dropped
+    if (currentDragged.day_of_week === targetDay && currentDragged.period === targetPeriod) {
+      return;
+    }
+
+    if (isCopy) {
+      // DUPLICATE / COPY
+      const newSlotData = {
+        teacher_name: currentDragged.teacher_name,
+        class_name: currentDragged.class_name,
+        subject: currentDragged.subject,
+        day_of_week: targetDay,
+        period: targetPeriod,
+        session: targetSession,
+        room: currentDragged.room || "",
+        semester: currentDragged.semester || "Học kỳ 1",
+        from_week: currentDragged.from_week || 1,
+        to_week: currentDragged.to_week || 35,
+      };
+
+      try {
+        if (existingSlot) {
+          const ok = confirm(`Ghi đè tiết [${existingSlot.class_name}] tại Thứ ${targetDay} - Tiết ${targetPeriod}?`);
+          if (!ok) return;
+          const updated = await apiClient<TKBSlot>(`/api/tkb/${existingSlot.id}`, {
+            method: "PUT",
+            body: JSON.stringify(newSlotData),
+          });
+          setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+        } else {
+          const created = await apiClient<TKBSlot>("/api/tkb", {
+            method: "POST",
+            body: JSON.stringify(newSlotData),
+          });
+          setSlots((prev) => [...prev, created]);
+        }
+        toast.success(`Đã sao chép tiết ${currentDragged.class_name} sang Thứ ${targetDay} - Tiết ${targetPeriod}!`);
+        loadTKB();
+      } catch (err: any) {
+        toast.error(err?.message || "Lỗi sao chép tiết");
+      }
+      return;
+    }
+
+    // MOVE or SWAP
+    if (!existingSlot) {
+      // Move to empty cell
+      setSlots((prev) =>
+        prev.map((s) =>
+          s.id === currentDragged.id
+            ? {
+                ...s,
+                day_of_week: targetDay,
+                period: targetPeriod,
+                session: targetSession,
+              }
+            : s
+        )
+      );
+
+      try {
+        await apiClient(`/api/tkb/${currentDragged.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            day_of_week: targetDay,
+            period: targetPeriod,
+            session: targetSession,
+          }),
+        });
+        toast.success(`Đã chuyển tiết [${currentDragged.class_name}] sang Thứ ${targetDay} - Tiết ${targetPeriod}!`);
+        loadTKB();
+      } catch (err: any) {
+        toast.error(err?.message || "Lỗi chuyển vị trí");
+        loadTKB();
+      }
+    } else {
+      // Swap slots with existingSlot
+      const originDay = currentDragged.day_of_week;
+      const originPeriod = currentDragged.period;
+      const originSession = originPeriod <= 5 ? "Sáng" : "Chiều";
+
+      setSlots((prev) =>
+        prev.map((s) => {
+          if (s.id === currentDragged.id) {
+            return {
+              ...s,
+              day_of_week: targetDay,
+              period: targetPeriod,
+              session: targetSession,
+            };
+          }
+          if (s.id === existingSlot.id) {
+            return {
+              ...s,
+              day_of_week: originDay,
+              period: originPeriod,
+              session: originSession,
+            };
+          }
+          return s;
+        })
+      );
+
+      try {
+        await Promise.all([
+          apiClient(`/api/tkb/${currentDragged.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              day_of_week: targetDay,
+              period: targetPeriod,
+              session: targetSession,
+            }),
+          }),
+          apiClient(`/api/tkb/${existingSlot.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              day_of_week: originDay,
+              period: originPeriod,
+              session: originSession,
+            }),
+          }),
+        ]);
+        toast.success(
+          `Đã hoán đổi vị trí: [${currentDragged.class_name}] ⇄ [${existingSlot.class_name}]!`
+        );
+        loadTKB();
+      } catch (err: any) {
+        toast.error(err?.message || "Lỗi hoán đổi tiết dạy");
+        loadTKB();
+      }
+    }
+  };
+
+  // --- CONTEXT MENU HANDLERS ---
+  const handleSlotContextMenu = (slot: TKBSlot, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      slot,
+    });
+  };
+
+  const handleEmptyContextMenu = (day: number, period: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      day,
+      period,
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* Top action header */}
@@ -685,13 +1094,13 @@ export function TKBTab() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-850">
+        <div className="flex items-center justify-between gap-1 sm:gap-2 pt-1 border-t border-slate-100 dark:border-slate-850 overflow-x-auto custom-scrollbar-none">
           {/* Session Filters (Sáng / Chiều / Cả ngày) */}
-          <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-md p-0.5 bg-slate-50 dark:bg-[#0d1117] text-xs">
+          <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-md p-0.5 bg-slate-50 dark:bg-[#0d1117] text-xs shrink-0">
             <button
               type="button"
               onClick={() => setSessionFilter("all")}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+              className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap ${
                 sessionFilter === "all"
                   ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-2xs"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -702,57 +1111,61 @@ export function TKBTab() {
             <button
               type="button"
               onClick={() => setSessionFilter("morning")}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors flex items-center gap-1 ${
+              className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap ${
                 sessionFilter === "morning"
                   ? "bg-amber-600 text-white shadow-2xs"
                   : "text-amber-800 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
               }`}
             >
-              <span>☀️ Buổi Sáng ({morningSlotsCount})</span>
+              <span>☀️</span>
+              <span className="inline sm:hidden">Sáng ({morningSlotsCount})</span>
+              <span className="hidden sm:inline">Buổi Sáng ({morningSlotsCount})</span>
             </button>
             <button
               type="button"
               onClick={() => setSessionFilter("afternoon")}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors flex items-center gap-1 ${
+              className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap ${
                 sessionFilter === "afternoon"
                   ? "bg-indigo-600 text-white shadow-2xs"
                   : "text-indigo-800 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
               }`}
             >
-              <span>🌙 Buổi Chiều ({afternoonSlotsCount})</span>
+              <span>🌙</span>
+              <span className="inline sm:hidden">Chiều ({afternoonSlotsCount})</span>
+              <span className="hidden sm:inline">Buổi Chiều ({afternoonSlotsCount})</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-1">
             {/* View mode toggle */}
-            <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-md p-0.5 bg-slate-50 dark:bg-[#0d1117]">
+            <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-md p-0.5 bg-slate-50 dark:bg-[#0d1117] shrink-0">
               <Button
                 variant={viewMode === "grid" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className={`h-7 px-2 text-xs gap-1 ${
+                className={`h-7 px-1.5 sm:px-2 text-[11px] sm:text-xs gap-1 whitespace-nowrap ${
                   viewMode === "grid"
                     ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                     : "text-slate-600"
                 }`}
                 title="Xem ma trận tuần"
               >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                Ma trận
+                <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                <span>Ma trận</span>
               </Button>
               <Button
                 variant={viewMode === "list" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("list")}
-                className={`h-7 px-2 text-xs gap-1 ${
+                className={`h-7 px-1.5 sm:px-2 text-[11px] sm:text-xs gap-1 whitespace-nowrap ${
                   viewMode === "list"
                     ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                     : "text-slate-600"
                 }`}
                 title="Xem danh sách tiết"
               >
-                <List className="w-3.5 h-3.5" />
-                Danh sách
+                <List className="w-3.5 h-3.5 shrink-0" />
+                <span>Danh sách</span>
               </Button>
             </div>
 
@@ -760,7 +1173,7 @@ export function TKBTab() {
               size="sm"
               variant="ghost"
               onClick={loadTKB}
-              className="h-7 w-7 p-0 text-slate-500 hidden sm:flex items-center justify-center"
+              className="h-7 w-7 p-0 text-slate-500 hidden sm:flex items-center justify-center shrink-0"
               title="Làm mới"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -768,6 +1181,37 @@ export function TKBTab() {
           </div>
         </div>
       </div>
+
+      {/* Copy / Cut Status Banner */}
+      {copiedSlot && (
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-indigo-950/30 border-2 border-dashed border-emerald-400 dark:border-emerald-600/70 p-3 px-4 rounded-xl shadow-xs flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2.5 flex-wrap text-xs">
+            <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              {copiedSlot.isCut ? <Scissors className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            </div>
+            <div>
+              <span className="font-semibold text-emerald-900 dark:text-emerald-200">
+                {copiedSlot.isCut ? "Đang cắt tiết:" : "Đã sao chép tiết:"}
+              </span>{" "}
+              <Badge variant="outline" className="bg-white dark:bg-[#161b22] border-emerald-300 text-emerald-800 dark:text-emerald-300 font-bold ml-1">
+                {copiedSlot.slot.class_name} - {copiedSlot.slot.subject}
+              </Badge>
+              <span className="text-[11px] text-slate-500 ml-2 hidden sm:inline">
+                👉 Bấm vào ô bất kỳ trên bảng để dán (hoặc kéo thả để di chuyển). Nhấn Esc để hủy.
+              </span>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleCancelCopy}
+            className="h-7 px-2.5 text-xs text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1 shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Hủy</span>
+          </Button>
+        </div>
+      )}
 
       {/* View 1: Weekly Schedule Grid */}
       {viewMode === "grid" && (
@@ -829,14 +1273,26 @@ export function TKBTab() {
                                   Tiết {p}
                                 </span>
                                 <span className="italic text-[11px] text-slate-400/80">(Trống)</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenAddSlot(d.num, p)}
-                                  className="h-6 px-2 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-0.5"
-                                >
-                                  <Plus className="w-3 h-3" /> Thêm
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  {copiedSlot && (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => handlePasteSlot(d.num, p)}
+                                      className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white gap-0.5 shadow-2xs"
+                                    >
+                                      <ClipboardPaste className="w-3 h-3" /> Dán
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleOpenAddSlot(d.num, p)}
+                                    className="h-6 px-2 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-0.5"
+                                  >
+                                    <Plus className="w-3 h-3" /> Thêm
+                                  </Button>
+                                </div>
                               </div>
                             );
                           }
@@ -859,6 +1315,15 @@ export function TKBTab() {
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-0.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handleCopySlot(slot, e)}
+                                    className="h-6 w-6 text-slate-400 hover:text-emerald-600"
+                                    title="Sao chép tiết"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -914,14 +1379,26 @@ export function TKBTab() {
                                   Tiết {p} (T{chieuNum} Chiều)
                                 </span>
                                 <span className="italic text-[11px] text-slate-400/80">(Trống)</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenAddSlot(d.num, p)}
-                                  className="h-6 px-2 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 gap-0.5"
-                                >
-                                  <Plus className="w-3 h-3" /> Thêm
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  {copiedSlot && (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => handlePasteSlot(d.num, p)}
+                                      className="h-6 px-2 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white gap-0.5 shadow-2xs"
+                                    >
+                                      <ClipboardPaste className="w-3 h-3" /> Dán
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleOpenAddSlot(d.num, p)}
+                                    className="h-6 px-2 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 gap-0.5"
+                                  >
+                                    <Plus className="w-3 h-3" /> Thêm
+                                  </Button>
+                                </div>
                               </div>
                             );
                           }
@@ -944,6 +1421,15 @@ export function TKBTab() {
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-0.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handleCopySlot(slot, e)}
+                                    className="h-6 w-6 text-slate-400 hover:text-indigo-600"
+                                    title="Sao chép tiết"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -1021,29 +1507,145 @@ export function TKBTab() {
                           </td>
                           {DAYS.map((d) => {
                             const slot = getSlot(d.num, period);
+                            const isOver = dragOverCell?.day === d.num && dragOverCell?.period === period;
+                            const isCurrentDragged = draggedSlot?.id === slot?.id;
                             return (
                               <td
                                 key={d.num}
-                                onClick={() => (slot ? handleOpenEditSlot(slot) : handleOpenAddSlot(d.num, period))}
-                                className="px-2 py-2 border-r border-[#d0d7de] dark:border-[#30363d] last:border-r-0 h-14 align-middle cursor-pointer transition-colors hover:bg-slate-100/60 dark:hover:bg-[#30363d]/40 group"
+                                onDragOver={(e) => handleDragOver(e, d.num, period)}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, d.num, period, slot)}
+                                onContextMenu={(e) =>
+                                  slot
+                                    ? handleSlotContextMenu(slot, e)
+                                    : handleEmptyContextMenu(d.num, period, e)
+                                }
+                                onClick={() => {
+                                  if (isDraggingRef.current) return;
+                                  if (slot) {
+                                    if (copiedSlot && copiedSlot.slot.id !== slot.id) {
+                                      handlePasteSlot(d.num, period);
+                                    } else {
+                                      handleOpenEditSlot(slot);
+                                    }
+                                  } else if (copiedSlot) {
+                                    handlePasteSlot(d.num, period);
+                                  } else {
+                                    handleOpenAddSlot(d.num, period);
+                                  }
+                                }}
+                                className={`px-1.5 py-1.5 border-r border-[#d0d7de] dark:border-[#30363d] last:border-r-0 h-16 align-middle cursor-pointer transition-all relative group select-none ${
+                                  isOver
+                                    ? slot && !isCurrentDragged
+                                      ? "bg-amber-100/70 dark:bg-amber-950/60 ring-2 ring-inset ring-amber-500"
+                                      : "bg-emerald-100/70 dark:bg-emerald-950/60 ring-2 ring-inset ring-emerald-500"
+                                    : draggedSlot && !slot
+                                    ? "bg-emerald-50/30 dark:bg-emerald-950/20 border-2 border-dashed border-emerald-300 dark:border-emerald-800"
+                                    : "hover:bg-slate-100/60 dark:hover:bg-[#30363d]/40"
+                                }`}
                               >
                                 {slot ? (
-                                  <div className="p-1.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 space-y-0.5 relative shadow-2xs">
-                                    <div className="flex items-center justify-between gap-1">
-                                      <p className="font-bold text-xs">{slot.class_name}</p>
+                                  <div
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(slot, e)}
+                                    onDragEnd={handleDragEnd}
+                                    className={`p-1.5 rounded relative shadow-2xs transition-all cursor-grab active:cursor-grabbing group/card ${
+                                      isCurrentDragged
+                                        ? "opacity-35 scale-95 border-2 border-dashed border-emerald-500"
+                                        : copiedSlot?.slot?.id === slot.id
+                                        ? copiedSlot.isCut
+                                          ? "ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-950/50 border border-amber-400"
+                                          : "ring-2 ring-emerald-500 bg-emerald-100/50 dark:bg-emerald-950/50 border border-emerald-400"
+                                        : "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:shadow-md hover:border-emerald-400 dark:hover:border-emerald-600"
+                                    }`}
+                                  >
+                                    {/* Quick Action Buttons on Hover */}
+                                    <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-white/95 dark:bg-[#161b22]/95 backdrop-blur-xs rounded-md shadow-xs p-0.5 z-10 border border-slate-200/80 dark:border-slate-700/80 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleCopySlot(slot, e)}
+                                        className="p-1 rounded hover:bg-emerald-100 dark:hover:bg-emerald-950 text-slate-500 hover:text-emerald-700 dark:hover:text-emerald-300"
+                                        title="Sao chép tiết (Copy)"
+                                      >
+                                        <Copy className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleCutSlot(slot, e)}
+                                        className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-950 text-slate-500 hover:text-amber-700 dark:hover:text-amber-300"
+                                        title="Di chuyển tiết (Cắt)"
+                                      >
+                                        <Scissors className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenEditSlot(slot);
+                                        }}
+                                        className="p-1 rounded hover:bg-emerald-100 dark:hover:bg-emerald-950 text-slate-500 hover:text-emerald-700 dark:hover:text-emerald-300"
+                                        title="Sửa tiết"
+                                      >
+                                        <Edit2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-1 pr-1">
+                                      <div className="flex items-center gap-0.5">
+                                        <GripVertical className="w-3 h-3 text-slate-400 group-hover/card:text-emerald-600 shrink-0" />
+                                        <p className="font-bold text-xs">{slot.class_name}</p>
+                                      </div>
                                       {(slot.from_week !== 1 || slot.to_week !== 35) && (
-                                        <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-semibold" title={`Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}>
+                                        <span
+                                          className="text-[9px] px-1 py-0.2 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-semibold"
+                                          title={`Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}
+                                        >
                                           T{slot.from_week}-{slot.to_week}
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate">
+                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate text-left pl-3.5">
                                       {slot.subject}
                                     </p>
+
+                                    {/* Drag Over Existing Slot Indicator (Swap) */}
+                                    {isOver && !isCurrentDragged && (
+                                      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-amber-600/90 text-white text-[11px] font-bold rounded shadow-lg backdrop-blur-[1px] animate-in fade-in zoom-in-95 duration-100">
+                                        <ArrowLeftRight className="w-4 h-4 mb-0.5 animate-bounce" />
+                                        <span>{isDragCopy ? "Ghi đè" : "Hoán đổi"}</span>
+                                      </div>
+                                    )}
                                   </div>
                                 ) : (
-                                  <div className="text-slate-300 dark:text-slate-700 text-xs group-hover:text-emerald-500 font-semibold">
-                                    +
+                                  <div className="flex items-center justify-center h-full min-h-[44px]">
+                                    {isOver ? (
+                                      <div className="flex flex-col items-center justify-center py-1 px-2 rounded border-2 border-dashed border-emerald-500 bg-emerald-100/70 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 text-[10px] font-bold animate-pulse w-full">
+                                        <span>{isDragCopy ? "📋 Thả để chép" : "⬇️ Thả vào đây"}</span>
+                                      </div>
+                                    ) : copiedSlot ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handlePasteSlot(d.num, period, e)}
+                                        className="w-full h-full min-h-[44px] flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100/70 dark:bg-emerald-950/60 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 rounded-lg border-2 border-dashed border-emerald-500 shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
+                                        title={`Bấm để ${copiedSlot.isCut ? "chuyển" : "dán"} ${copiedSlot.slot.class_name} vào đây`}
+                                      >
+                                        {copiedSlot.isCut ? (
+                                          <>
+                                            <Scissors className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                            <span>Chuyển vào đây</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ClipboardPaste className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
+                                            <span>Dán vào đây</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    ) : (
+                                      <div className="text-slate-300 dark:text-slate-700 text-xs group-hover:text-emerald-500 font-semibold transition-colors">
+                                        +
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -1080,29 +1682,139 @@ export function TKBTab() {
                             </td>
                             {DAYS.map((d) => {
                               const slot = getSlot(d.num, period);
+                              const isOver = dragOverCell?.day === d.num && dragOverCell?.period === period;
+                              const isCurrentDragged = draggedSlot?.id === slot?.id;
                               return (
                                 <td
                                   key={d.num}
-                                  onClick={() => (slot ? handleOpenEditSlot(slot) : handleOpenAddSlot(d.num, period))}
-                                  className="px-2 py-2 border-r border-[#d0d7de] dark:border-[#30363d] last:border-r-0 h-14 align-middle cursor-pointer transition-colors hover:bg-slate-100/60 dark:hover:bg-[#30363d]/40 group"
+                                  onDragOver={(e) => handleDragOver(e, d.num, period)}
+                                  onDragLeave={handleDragLeave}
+                                  onDrop={(e) => handleDrop(e, d.num, period, slot)}
+                                  onContextMenu={(e) =>
+                                    slot
+                                      ? handleSlotContextMenu(slot, e)
+                                      : handleEmptyContextMenu(d.num, period, e)
+                                  }
+                                  onClick={() => {
+                                    if (isDraggingRef.current) return;
+                                    if (slot) {
+                                      handleOpenEditSlot(slot);
+                                    } else if (copiedSlot) {
+                                      handlePasteSlot(d.num, period);
+                                    } else {
+                                      handleOpenAddSlot(d.num, period);
+                                    }
+                                  }}
+                                  className={`px-1.5 py-1.5 border-r border-[#d0d7de] dark:border-[#30363d] last:border-r-0 h-16 align-middle cursor-pointer transition-all relative group select-none ${
+                                    isOver
+                                      ? slot && !isCurrentDragged
+                                        ? "bg-amber-100/70 dark:bg-amber-950/60 ring-2 ring-inset ring-amber-500"
+                                        : "bg-indigo-100/70 dark:bg-indigo-950/60 ring-2 ring-inset ring-indigo-500"
+                                      : "hover:bg-slate-100/60 dark:hover:bg-[#30363d]/40"
+                                  }`}
                                 >
                                   {slot ? (
-                                    <div className="p-1.5 rounded bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300 space-y-0.5 shadow-2xs">
-                                      <div className="flex items-center justify-between gap-1">
-                                        <p className="font-bold text-xs">{slot.class_name}</p>
+                                    <div
+                                      draggable={true}
+                                      onDragStart={(e) => handleDragStart(slot, e)}
+                                      onDragEnd={handleDragEnd}
+                                      className={`p-1.5 rounded relative shadow-2xs transition-all cursor-grab active:cursor-grabbing group/card ${
+                                        isCurrentDragged
+                                          ? "opacity-35 scale-95 border-2 border-dashed border-indigo-500"
+                                          : copiedSlot?.slot?.id === slot.id
+                                          ? copiedSlot.isCut
+                                            ? "ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-950/50 border border-amber-400"
+                                            : "ring-2 ring-indigo-500 bg-indigo-100/50 dark:bg-indigo-950/50 border border-indigo-400"
+                                          : "bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300 hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-600"
+                                      }`}
+                                    >
+                                      {/* Quick Action Buttons on Hover */}
+                                      <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-white/95 dark:bg-[#161b22]/95 backdrop-blur-xs rounded-md shadow-xs p-0.5 z-10 border border-slate-200/80 dark:border-slate-700/80 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleCopySlot(slot, e)}
+                                          className="p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-950 text-slate-500 hover:text-indigo-700 dark:hover:text-indigo-300"
+                                          title="Sao chép tiết (Copy)"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleCutSlot(slot, e)}
+                                          className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-950 text-slate-500 hover:text-amber-700 dark:hover:text-amber-300"
+                                          title="Di chuyển tiết (Cắt)"
+                                        >
+                                          <Scissors className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenEditSlot(slot);
+                                          }}
+                                          className="p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-950 text-slate-500 hover:text-indigo-700 dark:hover:text-indigo-300"
+                                          title="Sửa tiết"
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+
+                                      <div className="flex items-center justify-between gap-1 pr-1">
+                                        <div className="flex items-center gap-0.5">
+                                          <GripVertical className="w-3 h-3 text-slate-400 group-hover/card:text-indigo-600 shrink-0" />
+                                          <p className="font-bold text-xs">{slot.class_name}</p>
+                                        </div>
                                         {(slot.from_week !== 1 || slot.to_week !== 35) && (
-                                          <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 font-semibold" title={`Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}>
+                                          <span
+                                            className="text-[9px] px-1 py-0.2 rounded bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 font-semibold"
+                                            title={`Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}
+                                          >
                                             T{slot.from_week}-{slot.to_week}
                                           </span>
                                         )}
                                       </div>
-                                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium truncate">
+                                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium truncate text-left pl-3.5">
                                         {slot.subject}
                                       </p>
+
+                                      {/* Drag Over Existing Slot Indicator (Swap) */}
+                                      {isOver && !isCurrentDragged && (
+                                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-amber-600/90 text-white text-[11px] font-bold rounded shadow-lg backdrop-blur-[1px] animate-in fade-in zoom-in-95 duration-100">
+                                          <ArrowLeftRight className="w-4 h-4 mb-0.5 animate-bounce" />
+                                          <span>{isDragCopy ? "Ghi đè" : "Hoán đổi"}</span>
+                                        </div>
+                                      )}
                                     </div>
                                   ) : (
-                                    <div className="text-slate-300 dark:text-slate-700 text-xs group-hover:text-indigo-500 font-semibold">
-                                      +
+                                    <div className="flex items-center justify-center h-full min-h-[44px]">
+                                      {isOver ? (
+                                        <div className="flex flex-col items-center justify-center py-1 px-2 rounded border-2 border-dashed border-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-200 text-[10px] font-bold animate-pulse w-full">
+                                          <span>{isDragCopy ? "📋 Thả để chép" : "⬇️ Thả vào đây"}</span>
+                                        </div>
+                                      ) : copiedSlot ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handlePasteSlot(d.num, period, e)}
+                                          className="w-full h-full min-h-[44px] flex items-center justify-center gap-1.5 text-[11px] font-bold text-indigo-800 dark:text-indigo-200 bg-indigo-100/70 dark:bg-indigo-950/60 hover:bg-indigo-200 dark:hover:bg-indigo-900/80 rounded-lg border-2 border-dashed border-indigo-500 shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
+                                          title={`Bấm để ${copiedSlot.isCut ? "chuyển" : "dán"} ${copiedSlot.slot.class_name} vào đây`}
+                                        >
+                                          {copiedSlot.isCut ? (
+                                            <>
+                                              <Scissors className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                              <span>Chuyển vào đây</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <ClipboardPaste className="w-3.5 h-3.5 text-indigo-600 animate-bounce" />
+                                              <span>Dán vào đây</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      ) : (
+                                        <div className="text-slate-300 dark:text-slate-700 text-xs group-hover:text-indigo-500 font-semibold transition-colors">
+                                          +
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </td>
@@ -1116,9 +1828,15 @@ export function TKBTab() {
                 </tbody>
               </table>
             </div>
-            <div className="p-2.5 bg-slate-50 dark:bg-[#0d1117] border-t border-[#d0d7de] dark:border-[#30363d] text-[11px] text-slate-400 flex items-center justify-between flex-wrap gap-2">
-              <span>💡 Nhấn vào ô để thêm tiết hoặc chỉnh sửa trực tiếp trên ma trận</span>
-              <span className="font-medium text-emerald-600">
+            <div className="p-2.5 bg-slate-50 dark:bg-[#0d1117] border-t border-[#d0d7de] dark:border-[#30363d] text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between flex-wrap gap-2">
+              <span className="flex items-center gap-1.5 flex-wrap">
+                <span>💡 <strong>Mẹo:</strong></span>
+                <span>• Kéo thả vào ô trống để chuyển tiết</span>
+                <span>• Kéo thả vào tiết khác để hoán đổi (Swap)</span>
+                <span>• Giữ Ctrl khi kéo để nhân bản</span>
+                <span>• Bấm 📋 hoặc chuột phải để Copy/Paste</span>
+              </span>
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">
                 {selectedWeekFilter === "all" ? "Đang hiển thị toàn bộ các tuần" : `Đang lọc theo Tuần ${selectedWeekFilter}`}
               </span>
             </div>
@@ -1489,15 +2207,31 @@ export function TKBTab() {
 
           <DialogFooter className="flex-row justify-between items-center pt-2">
             {editingSlot && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => handleDeleteSlot(editingSlot.id)}
-                className="text-xs h-8 mr-auto"
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-1" />
-                Xóa tiết này
-              </Button>
+              <div className="flex items-center gap-2 mr-auto">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDeleteSlot(editingSlot.id)}
+                  className="text-xs h-8"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Xóa
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    handleCopySlot(editingSlot);
+                    setSlotDialogOpen(false);
+                  }}
+                  className="text-xs h-8 gap-1 text-slate-700 dark:text-slate-200"
+                  title="Sao chép tiết này để dán vào vị trí khác"
+                >
+                  <Copy className="w-3.5 h-3.5 text-emerald-600" />
+                  Sao chép
+                </Button>
+              </div>
             )}
             <div className="flex gap-2 ml-auto">
               <Button
@@ -1862,6 +2596,144 @@ export function TKBTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Context Menu on Right Click */}
+      {contextMenu?.visible && (
+        <div
+          style={{
+            top: Math.min(contextMenu.y, (typeof window !== "undefined" ? window.innerHeight : 800) - 220),
+            left: Math.min(contextMenu.x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 210),
+          }}
+          className="fixed z-50 min-w-[190px] bg-white dark:bg-[#161b22] border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl py-1 text-xs text-slate-700 dark:text-slate-200 backdrop-blur-md animate-in fade-in zoom-in-95 duration-100 select-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.slot ? (
+            <>
+              <div className="px-3 py-1.5 font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between">
+                <span>{contextMenu.slot.class_name} - {contextMenu.slot.subject}</span>
+                <span className="text-[10px] text-slate-400 font-normal font-mono">Tiết {contextMenu.slot.period}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCopySlot(contextMenu.slot!)}
+                className="w-full px-3 py-2 text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-2 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Sao chép tiết (Copy)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCutSlot(contextMenu.slot!)}
+                className="w-full px-3 py-2 text-left hover:bg-amber-50 dark:hover:bg-amber-950/50 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-2 cursor-pointer"
+              >
+                <Scissors className="w-3.5 h-3.5 text-amber-600" />
+                <span>Cắt tiết (Di chuyển)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const s = contextMenu.slot!;
+                  setContextMenu(null);
+                  handleOpenEditSlot(s);
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-[#21262d] flex items-center gap-2 cursor-pointer"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                <span>Chỉnh sửa chi tiết</span>
+              </button>
+              <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+              <button
+                type="button"
+                onClick={() => {
+                  const sid = contextMenu.slot!.id;
+                  setContextMenu(null);
+                  handleDeleteSlot(sid);
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-red-50 dark:hover:bg-red-950/50 text-red-600 flex items-center gap-2 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Xóa tiết này</span>
+              </button>
+            </>
+          ) : contextMenu.day && contextMenu.period ? (
+            <>
+              <div className="px-3 py-1.5 font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40">
+                Thứ {contextMenu.day} - Tiết {contextMenu.period} ({contextMenu.period <= 5 ? "Sáng" : "Chiều"})
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = contextMenu.day!;
+                  const p = contextMenu.period!;
+                  setContextMenu(null);
+                  handleOpenAddSlot(d, p);
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Thêm tiết mới tại đây</span>
+              </button>
+              {copiedSlot && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = contextMenu.day!;
+                    const p = contextMenu.period!;
+                    setContextMenu(null);
+                    handlePasteSlot(d, p);
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-2 font-medium cursor-pointer"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Dán tiết ({copiedSlot.slot.class_name} - {copiedSlot.slot.subject})</span>
+                </button>
+              )}
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* Floating Action Bar when Copy/Cut is active */}
+      {copiedSlot && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white/95 dark:bg-[#161b22]/95 backdrop-blur-md border-2 border-emerald-500 text-slate-800 dark:text-slate-100 px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-3.5 animate-in slide-in-from-bottom-5 duration-200 select-none max-w-[95vw]">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+              copiedSlot.isCut ? "bg-amber-600 text-white" : "bg-emerald-600 text-white"
+            }`}>
+              {copiedSlot.isCut ? <Scissors className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </div>
+            <div>
+              <div className="text-xs font-bold flex items-center gap-1.5 flex-wrap">
+                <span>{copiedSlot.isCut ? "Đang di chuyển:" : "Đang sao chép:"}</span>
+                <span className="text-emerald-700 dark:text-emerald-300 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 font-mono text-[11px]">
+                  {copiedSlot.slot.class_name} - {copiedSlot.slot.subject}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                👉 Nhấp ô trống trên bảng để {copiedSlot.isCut ? "chuyển đến" : "dán (có thể dán nhiều ô)"}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-3">
+            <Button
+              size="sm"
+              onClick={handleCancelCopy}
+              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 font-semibold rounded-lg shadow-xs"
+            >
+              <Check className="w-3.5 h-3.5 mr-1" /> Hoàn tất
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCancelCopy}
+              className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 rounded-lg"
+              title="Hủy (Esc)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

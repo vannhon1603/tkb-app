@@ -120,6 +120,7 @@ export function SoBaoGiangTab() {
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [weekNumber, setWeekNumber] = useState<number>(1);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "taught" | "delayed">("all");
+  const [sessionFilter, setSessionFilter] = useState<"all" | "morning" | "afternoon">("all");
   const [showEmptyPeriods, setShowEmptyPeriods] = useState<boolean>(true);
   
   // Semester Start Date (Tuần 1)
@@ -507,6 +508,11 @@ export function SoBaoGiangTab() {
     const taught = entries.filter((e) => e.is_taught).length;
     const pending = total - taught;
 
+    let morningTotal = 0;
+    let morningTaught = 0;
+    let afternoonTotal = 0;
+    let afternoonTaught = 0;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -515,6 +521,14 @@ export function SoBaoGiangTab() {
     const bySubject: Record<string, { total: number; taught: number; pending: number }> = {};
 
     entries.forEach((e) => {
+      if (e.period <= 5) {
+        morningTotal += 1;
+        if (e.is_taught) morningTaught += 1;
+      } else {
+        afternoonTotal += 1;
+        if (e.is_taught) afternoonTaught += 1;
+      }
+
       // Check delayed
       if (!e.is_taught) {
         const d = parseDateStr(e.date_str);
@@ -546,16 +560,25 @@ export function SoBaoGiangTab() {
       pending,
       delayed,
       completionRate,
+      morningTotal,
+      morningTaught,
+      afternoonTotal,
+      afternoonTaught,
       byClass,
       bySubject,
     };
   }, [entries]);
 
-  // Filtered entries by status filter
+  // Filtered entries by status and session filter
   const filteredEntries = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return entries.filter((e) => {
+      // Filter by session
+      if (sessionFilter === "morning" && e.period > 5) return false;
+      if (sessionFilter === "afternoon" && e.period <= 5) return false;
+
+      // Filter by status
       if (statusFilter === "taught") return e.is_taught;
       if (statusFilter === "pending") return !e.is_taught;
       if (statusFilter === "delayed") {
@@ -564,7 +587,7 @@ export function SoBaoGiangTab() {
       }
       return true;
     });
-  }, [entries, statusFilter]);
+  }, [entries, statusFilter, sessionFilter]);
 
   return (
     <div className="space-y-4">
@@ -758,54 +781,97 @@ export function SoBaoGiangTab() {
 
         {/* Batch Actions & Filter Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-          {/* Status filter tabs */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setStatusFilter("all")}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-                statusFilter === "all"
-                  ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
-              }`}
-            >
-              Tất cả ({progressStats.total})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("pending")}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-                statusFilter === "pending"
-                  ? "bg-amber-600 text-white"
-                  : "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100"
-              }`}
-            >
-              Chưa dạy ({progressStats.pending})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("taught")}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-                statusFilter === "taught"
-                  ? "bg-emerald-600 text-white"
-                  : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100"
-              }`}
-            >
-              ✓ Đã dạy ({progressStats.taught})
-            </button>
-            {progressStats.delayed > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Session Filters (Sáng / Chiều / Cả ngày) */}
+            <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-md p-0.5 bg-slate-50 dark:bg-[#0d1117] text-xs shrink-0">
               <button
                 type="button"
-                onClick={() => setStatusFilter("delayed")}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-                  statusFilter === "delayed"
-                    ? "bg-red-600 text-white"
-                    : "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 hover:bg-red-100"
+                onClick={() => setSessionFilter("all")}
+                className={`px-2 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap ${
+                  sessionFilter === "all"
+                    ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-2xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                ⚠️ Trễ hạn ({progressStats.delayed})
+                Cả ngày ({entries.length})
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => setSessionFilter("morning")}
+                className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap ${
+                  sessionFilter === "morning"
+                    ? "bg-amber-600 text-white shadow-2xs"
+                    : "text-amber-800 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                }`}
+              >
+                <span>☀️</span>
+                <span className="inline sm:hidden">Sáng ({progressStats.morningTotal})</span>
+                <span className="hidden sm:inline">Buổi Sáng ({progressStats.morningTotal})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSessionFilter("afternoon")}
+                className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap ${
+                  sessionFilter === "afternoon"
+                    ? "bg-indigo-600 text-white shadow-2xs"
+                    : "text-indigo-800 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                }`}
+              >
+                <span>🌙</span>
+                <span className="inline sm:hidden">Chiều ({progressStats.afternoonTotal})</span>
+                <span className="hidden sm:inline">Buổi Chiều ({progressStats.afternoonTotal})</span>
+              </button>
+            </div>
+
+            {/* Status filter tabs */}
+            <div className="flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setStatusFilter("all")}
+                className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  statusFilter === "all"
+                    ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                }`}
+              >
+                Tất cả ({progressStats.total})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("pending")}
+                className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  statusFilter === "pending"
+                    ? "bg-amber-600 text-white"
+                    : "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100"
+                }`}
+              >
+                Chưa dạy ({progressStats.pending})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("taught")}
+                className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  statusFilter === "taught"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100"
+                }`}
+              >
+                ✓ Đã dạy ({progressStats.taught})
+              </button>
+              {progressStats.delayed > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("delayed")}
+                  className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                    statusFilter === "delayed"
+                      ? "bg-red-600 text-white"
+                      : "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 hover:bg-red-100"
+                  }`}
+                >
+                  ⚠️ Trễ hạn ({progressStats.delayed})
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Batch Quick Mark Buttons */}
@@ -894,6 +960,21 @@ export function SoBaoGiangTab() {
                 <Clock className="w-3.5 h-3.5 text-slate-500" />
                 <span className="font-semibold text-xs text-slate-700 dark:text-slate-300">
                   Chưa dạy: {progressStats.pending} tiết
+                </span>
+              </div>
+
+              {/* Sáng / Chiều Quick Metrics */}
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs">
+                <span>☀️ Sáng:</span>
+                <span className="font-bold text-amber-900 dark:text-amber-300">
+                  {progressStats.morningTaught}/{progressStats.morningTotal}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-xs">
+                <span>🌙 Chiều:</span>
+                <span className="font-bold text-indigo-900 dark:text-indigo-300">
+                  {progressStats.afternoonTaught}/{progressStats.afternoonTotal}
                 </span>
               </div>
 

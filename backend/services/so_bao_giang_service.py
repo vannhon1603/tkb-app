@@ -462,7 +462,7 @@ class SoBaoGiangService:
 
     @staticmethod
     def _expand_entries_with_empty_periods(entries: List[SoBaoGiangEntryModel]) -> List[Dict[str, Any]]:
-        """Expand entries to include empty rows for free periods on teaching days."""
+        """Expand entries to include empty rows for free periods on teaching days, separated into Sáng and Chiều."""
         if not entries:
             return []
         by_day: Dict[int, List[SoBaoGiangEntryModel]] = {}
@@ -476,22 +476,26 @@ class SoBaoGiangService:
             day_entries = by_day[day_num]
             date_str = day_entries[0].date_str if day_entries else ""
             max_p = max((e.period for e in day_entries), default=5)
+            has_afternoon = any(e.period > 5 for e in day_entries) or max_p > 5
             
-            if max_p <= 5:
-                periods = list(range(1, 6))
-            else:
-                periods = list(range(1, max(10, max_p) + 1))
+            # Morning periods: 1..5
+            # Afternoon periods: 6..10 (if any afternoon slots exist)
+            periods = list(range(1, 6))
+            if has_afternoon:
+                periods.extend(range(6, max(10, max_p) + 1))
                 
             period_map = {e.period: e for e in day_entries}
             
             for p in periods:
+                session_name = "Sáng" if p <= 5 else "Chiều"
                 if p in period_map:
                     expanded.append({
                         "is_empty": False,
                         "entry": period_map[p],
                         "day_of_week": day_num,
                         "date_str": date_str,
-                        "period": p
+                        "period": p,
+                        "session": session_name
                     })
                 else:
                     expanded.append({
@@ -499,13 +503,14 @@ class SoBaoGiangService:
                         "entry": None,
                         "day_of_week": day_num,
                         "date_str": date_str,
-                        "period": p
+                        "period": p,
+                        "session": session_name
                     })
         return expanded
 
     @staticmethod
     def export_excel(entries: List[SoBaoGiangEntryModel], week_number: int, teacher_name: str) -> bytes:
-        """Export Sổ Báo Giảng to styled Excel (.xlsx) file with empty rows for free periods"""
+        """Export Sổ Báo Giảng to styled Excel (.xlsx) file with empty rows and Buổi (Sáng / Chiều)"""
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = f"Tuần {week_number}"
@@ -518,6 +523,8 @@ class SoBaoGiangService:
         regular_font = Font(name="Times New Roman", size=10)
         bold_font = Font(name="Times New Roman", size=10, bold=True)
         empty_font = Font(name="Times New Roman", size=10, italic=True, color="888888")
+        session_sang_font = Font(name="Times New Roman", size=10, bold=True, color="B45309")
+        session_chieu_font = Font(name="Times New Roman", size=10, bold=True, color="4338CA")
         
         header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
         zebra_fill = PatternFill(start_color="F2F7FA", end_color="F2F7FA", fill_type="solid")
@@ -534,13 +541,13 @@ class SoBaoGiangService:
         left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
         # Title block
-        ws.merge_cells("A1:G1")
+        ws.merge_cells("A1:H1")
         ws["A1"] = "SỔ BÁO GIẢNG VÀ THEO DÕI TIẾN ĐỘ DẠY HỌC"
         ws["A1"].font = title_font
         ws["A1"].alignment = center_align
         ws.row_dimensions[1].height = 28
 
-        ws.merge_cells("A2:G2")
+        ws.merge_cells("A2:H2")
         ws["A2"] = f"TUẦN {week_number} | GIÁO VIÊN: {teacher_name.upper()}"
         ws["A2"].font = sub_font
         ws["A2"].alignment = center_align
@@ -549,7 +556,8 @@ class SoBaoGiangService:
         # Header Row
         headers = [
             ("Thứ / Ngày", 14),
-            ("Tiết TKB", 10),
+            ("Buổi", 10),
+            ("Tiết TKB", 14),
             ("Lớp", 10),
             ("Môn học", 12),
             ("Tiết PPCT", 11),
@@ -576,6 +584,10 @@ class SoBaoGiangService:
             ws.row_dimensions[row_num].height = 22
             is_empty = item["is_empty"]
             entry = item["entry"]
+            p_num = item["period"]
+            session_str = item.get("session", "Sáng" if p_num <= 5 else "Chiều")
+            session_font = session_sang_font if session_str == "Sáng" else session_chieu_font
+            period_text = f"Tiết {p_num}" if p_num <= 5 else f"Tiết {p_num} (T{p_num - 5} Chiều)"
 
             day_label = f"{DAY_VIETNAMESE.get(item['day_of_week'], 'Thứ')} ({item['date_str']})"
             
@@ -583,7 +595,8 @@ class SoBaoGiangService:
                 row_fill = empty_fill
                 row_data = [
                     (day_label, center_align, bold_font),
-                    (f"Tiết {item['period']}", center_align, empty_font),
+                    (session_str, center_align, session_font),
+                    (period_text, center_align, empty_font),
                     ("-", center_align, empty_font),
                     ("-", center_align, empty_font),
                     ("-", center_align, empty_font),
@@ -596,7 +609,8 @@ class SoBaoGiangService:
                 formatted_ppct_lesson = format_ppct_lesson_str(entry.ppct_lesson_number, entry.notes, entry.lesson_title)
                 row_data = [
                     (day_label, center_align, bold_font),
-                    (f"Tiết {entry.period}", center_align, regular_font),
+                    (session_str, center_align, session_font),
+                    (period_text, center_align, regular_font),
                     (entry.class_name, center_align, bold_font),
                     (entry.subject, center_align, regular_font),
                     (formatted_ppct_lesson, center_align, bold_font),
@@ -616,8 +630,8 @@ class SoBaoGiangService:
         last_row = start_row + len(expanded_items) + 2
         ws.cell(row=last_row, column=2, value="NGƯỜI LẬP BIỂU").font = bold_font
         ws.cell(row=last_row, column=2).alignment = center_align
-        ws.cell(row=last_row, column=6, value="TỔ TRƯỞNG CHUYÊN MÔN").font = bold_font
-        ws.cell(row=last_row, column=6).alignment = center_align
+        ws.cell(row=last_row, column=7, value="TỔ TRƯỞNG CHUYÊN MÔN").font = bold_font
+        ws.cell(row=last_row, column=7).alignment = center_align
 
         out = io.BytesIO()
         wb.save(out)
@@ -626,7 +640,7 @@ class SoBaoGiangService:
 
     @staticmethod
     def export_word(entries: List[SoBaoGiangEntryModel], week_number: int, teacher_name: str) -> bytes:
-        """Export Sổ Báo Giảng to formatted Word (.docx) document with empty rows for free periods"""
+        """Export Sổ Báo Giảng to formatted Word (.docx) document with empty rows and Buổi (Sáng / Chiều)"""
         doc = Document()
         
         # Set landscape page orientation or tight margins
@@ -652,13 +666,13 @@ class SoBaoGiangService:
         sub_run.font.name = "Times New Roman"
         sub_run.font.size = Pt(11)
 
-        # Main Table
-        table = doc.add_table(rows=1, cols=7)
+        # Main Table (8 columns with Buổi)
+        table = doc.add_table(rows=1, cols=8)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.style = 'Table Grid'
 
         # Headers
-        headers = ["Thứ / Ngày", "Tiết TKB", "Lớp", "Môn", "Tiết PPCT", "Tên bài dạy", "Ghi chú / ĐDDH"]
+        headers = ["Thứ / Ngày", "Buổi", "Tiết TKB", "Lớp", "Môn", "Tiết PPCT", "Tên bài dạy", "Ghi chú / ĐDDH"]
         hdr_cells = table.rows[0].cells
         for i, h in enumerate(headers):
             hdr_cells[i].text = h
@@ -674,11 +688,15 @@ class SoBaoGiangService:
             day_text = f"{DAY_VIETNAMESE.get(item['day_of_week'], 'Thứ')} ({item['date_str']})"
             is_empty = item["is_empty"]
             entry = item["entry"]
+            p_num = item["period"]
+            session_str = item.get("session", "Sáng" if p_num <= 5 else "Chiều")
+            period_text = f"Tiết {p_num}" if p_num <= 5 else f"Tiết {p_num} (T{p_num - 5})"
 
             if is_empty:
                 vals = [
                     day_text,
-                    f"Tiết {item['period']}",
+                    session_str,
+                    period_text,
                     "-",
                     "-",
                     "-",
@@ -689,7 +707,8 @@ class SoBaoGiangService:
                 formatted_ppct = format_ppct_lesson_str(entry.ppct_lesson_number, entry.notes, entry.lesson_title)
                 vals = [
                     day_text,
-                    f"Tiết {entry.period}",
+                    session_str,
+                    period_text,
                     entry.class_name,
                     entry.subject,
                     formatted_ppct,
@@ -705,7 +724,9 @@ class SoBaoGiangService:
                     p.runs[0].font.size = Pt(9.5)
                     if is_empty:
                         p.runs[0].font.italic = True
-                if i in [0, 1, 2, 3, 4] or is_empty:
+                    if i == 1:
+                        p.runs[0].bold = True
+                if i in [0, 1, 2, 3, 4, 5] or is_empty:
                     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         # Footer Signatures
