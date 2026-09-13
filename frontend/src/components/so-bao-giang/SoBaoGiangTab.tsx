@@ -589,16 +589,617 @@ export function SoBaoGiangTab() {
     });
   }, [entries, statusFilter, sessionFilter]);
 
+  // --- RENDERING HELPERS FOR SÁNG / CHIỀU ---
+  const renderMobilePeriodItem = (dayNum: number, periodNum: number, dayEntries: SoBaoGiangEntry[]) => {
+    const entry = dayEntries.find((e) => e.period === periodNum);
+    const isAfternoon = periodNum > 5;
+
+    if (!entry) {
+      return (
+        <div
+          key={`mobile-empty-${dayNum}-${periodNum}`}
+          className="p-3 bg-slate-50/40 dark:bg-[#161b22]/30 flex items-center justify-between text-xs text-slate-400"
+        >
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded font-bold text-xs font-mono ${
+              isAfternoon
+                ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/50"
+                : "bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+            }`}>
+              {isAfternoon ? `Tiết ${periodNum} (T${periodNum - 5} Chiều)` : `Tiết ${periodNum}`}
+            </span>
+            <span className="italic text-xs text-slate-400/80">(Tiết trống)</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setEditingEntry(null);
+              setEntryForm({
+                teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
+                day_of_week: dayNum,
+                period: periodNum,
+                class_name: "",
+                subject: "Toán",
+                ppct_lesson_number: 1,
+                lesson_title: "",
+                notes: "",
+                is_taught: false,
+              });
+              setAddModalOpen(true);
+            }}
+            className="h-7 px-2.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1 font-medium"
+          >
+            <Plus className="w-3 h-3" /> Thêm tiết
+          </Button>
+        </div>
+      );
+    }
+
+    const isTaught = !!entry.is_taught;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lessonDate = parseDateStr(entry.date_str);
+    const isDelayed = !isTaught && lessonDate && lessonDate < today;
+
+    return (
+      <div
+        key={`mobile-entry-${entry.id}`}
+        className={`p-3.5 transition-colors ${
+          isTaught
+            ? "bg-emerald-50/30 dark:bg-emerald-950/20"
+            : isDelayed
+            ? "bg-amber-50/30 dark:bg-amber-950/15"
+            : "bg-white dark:bg-[#161b22]"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => handleToggleTaught(entry)}
+            disabled={togglingId === entry.id}
+            className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+              isTaught
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500 bg-white dark:bg-[#0d1117]"
+            }`}
+            title={isTaught ? "Click để chuyển về Chưa dạy" : "Click để tick Đã dạy"}
+          >
+            {isTaught && <Check className="w-4 h-4 stroke-[3]" />}
+          </button>
+
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded font-bold text-xs font-mono border ${
+                isAfternoon
+                  ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"
+                  : "bg-amber-50/80 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+              }`}>
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                <span>{isAfternoon ? `Tiết ${entry.period} (T${entry.period - 5} Chiều)` : `Tiết ${entry.period} (Sáng)`}</span>
+              </span>
+
+              <span className="inline-block px-2.5 py-1 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-xs">
+                {entry.class_name}
+              </span>
+
+              <span className="inline-block px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700">
+                {entry.subject}
+              </span>
+
+              {isChuyenDeLesson(entry.ppct_lesson_number, entry.notes, entry.lesson_title) ? (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full font-mono font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-xs">
+                  <BookOpen className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  <span>Tiết PPCT {formatPPCTLessonNumber(entry.ppct_lesson_number, entry.notes, entry.lesson_title)}</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs">
+                  <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>{entry.ppct_lesson_number ? `Tiết PPCT ${entry.ppct_lesson_number}` : "PPCT: -"}</span>
+                </span>
+              )}
+            </div>
+
+            <p
+              className={`text-sm font-bold leading-relaxed ${
+                isTaught
+                  ? "text-emerald-950 dark:text-emerald-200"
+                  : "text-slate-900 dark:text-slate-100"
+              }`}
+            >
+              {entry.lesson_title}
+            </p>
+
+            {entry.notes && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                ĐDDH: {entry.notes}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between pt-1 gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleToggleTaught(entry)}
+                  disabled={togglingId === entry.id}
+                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-bold transition-colors cursor-pointer ${
+                    isTaught
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${isTaught ? "bg-white" : "bg-slate-400"}`} />
+                  <span>{isTaught ? "Đã dạy" : "Chưa dạy"}</span>
+                </button>
+
+                {entry.is_custom && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300">
+                    Đã sửa
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleOpenEdit(entry)}
+                  className="h-8 w-8 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                  title="Sửa tiết"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDeleteEntry(entry.id)}
+                  className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                  title="Xóa tiết"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDesktopRow = (periodNum: number, periodIdx: number, dayNum: number, dayEntries: SoBaoGiangEntry[]) => {
+    const entry = dayEntries.find((e) => e.period === periodNum);
+    const isAfternoon = periodNum > 5;
+
+    if (!entry) {
+      return (
+        <tr
+          key={`empty-${dayNum}-${periodNum}`}
+          className="bg-slate-50/25 dark:bg-[#161b22]/20 hover:bg-slate-50/70 dark:hover:bg-[#21262d]/40 transition-colors text-slate-400 group"
+        >
+          <td className="px-3 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d] text-slate-300 dark:text-slate-600 font-mono text-xs">
+            -
+          </td>
+          <td className="px-3 py-2 text-center font-normal text-slate-400 dark:text-slate-500 border-r border-[#d0d7de] dark:border-[#30363d]">
+            <span className="text-xs">{DAY_NAMES[dayNum]}</span>
+          </td>
+          <td className="px-2.5 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
+            <span className={`inline-block px-2 py-0.5 rounded font-bold text-xs font-mono ${
+              isAfternoon
+                ? "bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/40"
+                : "bg-slate-100/70 dark:bg-[#21262d]/70 text-slate-600 dark:text-slate-400"
+            }`}>
+              {isAfternoon ? `Tiết ${periodNum} (T${periodNum - 5} Chiều)` : `Tiết ${periodNum}`}
+            </span>
+          </td>
+          <td className="px-2.5 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d] text-slate-400 dark:text-slate-500 font-mono">
+            -
+          </td>
+          <td className="px-3 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d] text-slate-400 dark:text-slate-500">
+            -
+          </td>
+          <td className="px-2.5 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d] text-slate-400 dark:text-slate-500 font-mono">
+            -
+          </td>
+          <td className="px-4 py-2 border-r border-[#d0d7de] dark:border-[#30363d] text-slate-400 dark:text-slate-500 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="italic text-slate-400/80 dark:text-slate-500/80 font-normal">
+                (Tiết trống)
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditingEntry(null);
+                  setEntryForm({
+                    teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
+                    day_of_week: dayNum,
+                    period: periodNum,
+                    class_name: "",
+                    subject: "Toán",
+                    ppct_lesson_number: 1,
+                    lesson_title: "",
+                    notes: "",
+                    is_taught: false,
+                  });
+                  setAddModalOpen(true);
+                }}
+                className="h-5 px-1.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 opacity-0 group-hover:opacity-100 transition-opacity gap-1"
+                title="Thêm tiết dạy vào khung giờ này"
+              >
+                <Plus className="w-2.5 h-2.5" /> Thêm tiết
+              </Button>
+            </div>
+          </td>
+          <td className="px-3 py-2 text-slate-400 dark:text-slate-500 text-xs border-r border-[#d0d7de] dark:border-[#30363d]">
+            -
+          </td>
+          <td className="px-3 py-2 text-right whitespace-nowrap">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setEditingEntry(null);
+                setEntryForm({
+                  teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
+                  day_of_week: dayNum,
+                  period: periodNum,
+                  class_name: "",
+                  subject: "Toán",
+                  ppct_lesson_number: 1,
+                  lesson_title: "",
+                  notes: "",
+                  is_taught: false,
+                });
+                setAddModalOpen(true);
+              }}
+              className="h-7 w-7 text-slate-300 dark:text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+              title="Thêm tiết vào khung giờ này"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+          </td>
+        </tr>
+      );
+    }
+
+    const isTaught = !!entry.is_taught;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lessonDate = parseDateStr(entry.date_str);
+    const isDelayed = !isTaught && lessonDate && lessonDate < today;
+
+    return (
+      <tr
+        key={entry.id}
+        className={`transition-colors ${
+          isTaught
+            ? "bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-50/60"
+            : isDelayed
+            ? "bg-amber-50/30 dark:bg-amber-950/15 hover:bg-amber-50/50"
+            : periodIdx % 2 === 1
+            ? "bg-slate-50/40 dark:bg-[#161b22]/40 hover:bg-slate-100/60"
+            : "hover:bg-slate-50/80"
+        }`}
+      >
+        <td className="px-3 py-2.5 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
+          <div className="flex items-center justify-center">
+            <Checkbox
+              checked={isTaught}
+              onCheckedChange={() => handleToggleTaught(entry)}
+              disabled={togglingId === entry.id}
+              aria-label="Tick chọn tiết đã dạy"
+              title={isTaught ? "Đã dạy (Click để hủy)" : "Chưa dạy (Click để tick đã dạy)"}
+            />
+          </div>
+        </td>
+
+        <td className="px-3 py-2.5 text-center font-semibold text-slate-600 dark:text-slate-400 border-r border-[#d0d7de] dark:border-[#30363d]">
+          <span className="text-xs">{DAY_NAMES[entry.day_of_week]}</span>
+        </td>
+
+        <td className="px-2.5 py-2.5 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-xs font-mono border ${
+            isAfternoon
+              ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"
+              : "bg-amber-50/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+          }`}>
+            <Clock className={`w-3 h-3 shrink-0 ${isAfternoon ? "text-indigo-500" : "text-amber-600"}`} />
+            <span>{isAfternoon ? `Tiết ${entry.period} (T${entry.period - 5} Chiều)` : `Tiết ${entry.period}`}</span>
+          </span>
+        </td>
+
+        <td className="px-2.5 py-2.5 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
+          <span className="inline-block px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs">
+            {entry.class_name}
+          </span>
+        </td>
+
+        <td className="px-3 py-2.5 text-center font-medium text-slate-700 dark:text-slate-300 border-r border-[#d0d7de] dark:border-[#30363d]">
+          {entry.subject}
+        </td>
+
+        <td className="px-2.5 py-2.5 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
+          {isChuyenDeLesson(entry.ppct_lesson_number, entry.notes, entry.lesson_title) ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-xs shadow-2xs">
+              <BookOpen className="w-3 h-3 text-purple-600 shrink-0" />
+              <span>Tiết {formatPPCTLessonNumber(entry.ppct_lesson_number, entry.notes, entry.lesson_title)}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs">
+              <BookOpen className="w-3 h-3 text-blue-600 shrink-0" />
+              <span>{entry.ppct_lesson_number ? `Tiết ${entry.ppct_lesson_number}` : "-"}</span>
+            </span>
+          )}
+        </td>
+
+        <td className="px-4 py-2.5 border-r border-[#d0d7de] dark:border-[#30363d]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="space-y-0.5">
+              <span
+                className={`font-semibold leading-snug ${
+                  isTaught
+                    ? "text-emerald-900 dark:text-emerald-200"
+                    : "text-slate-900 dark:text-slate-100"
+                }`}
+              >
+                {entry.lesson_title}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleToggleTaught(entry)}
+                disabled={togglingId === entry.id}
+                className={`relative inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-semibold transition-colors duration-150 cursor-pointer shadow-2xs select-none ${
+                  isTaught
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20 border border-emerald-600"
+                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-slate-700"
+                }`}
+                title={isTaught ? "Trạng thái: Đã dạy (Nhấn để chuyển sang Chưa dạy)" : "Trạng thái: Chưa dạy (Nhấn để chuyển sang Đã dạy)"}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${isTaught ? "bg-white" : "bg-slate-400"}`} />
+                {isTaught ? (
+                  <span className="flex items-center gap-1 font-bold">
+                    <Check className="w-3 h-3 stroke-[3]" />
+                    <span>Đã dạy</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 font-medium">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    <span>Chưa dạy</span>
+                  </span>
+                )}
+              </button>
+
+              {entry.is_custom && (
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300"
+                  title="Tiết này đã được tùy chỉnh nội dung"
+                >
+                  Đã sửa
+                </span>
+              )}
+            </div>
+          </div>
+        </td>
+
+        <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 text-xs border-r border-[#d0d7de] dark:border-[#30363d] max-w-xs truncate">
+          {entry.notes || "-"}
+        </td>
+
+        <td className="px-3 py-2.5 text-right whitespace-nowrap">
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleOpenEdit(entry)}
+              className="h-7 w-7 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+              title="Chỉnh sửa nội dung tiết"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleDeleteEntry(entry.id)}
+              className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+              title="Xóa tiết"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderCardPeriodItem = (dayNum: number, periodNum: number, dayEntries: SoBaoGiangEntry[]) => {
+    const entry = dayEntries.find((e) => e.period === periodNum);
+    const isAfternoon = periodNum > 5;
+
+    if (!entry) {
+      return (
+        <div
+          key={`empty-card-${dayNum}-${periodNum}`}
+          className="pt-2.5 first:pt-0 p-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-xs flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded font-mono text-xs font-medium ${
+              isAfternoon
+                ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400"
+                : "bg-slate-100/60 dark:bg-[#21262d]/60 text-slate-500"
+            }`}>
+              {isAfternoon ? `Tiết ${periodNum} (T${periodNum - 5} Chiều)` : `Tiết ${periodNum}`}
+            </span>
+            <span className="italic text-xs text-slate-400">(Tiết trống)</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setEditingEntry(null);
+              setEntryForm({
+                teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
+                day_of_week: dayNum,
+                period: periodNum,
+                class_name: "",
+                subject: "Toán",
+                ppct_lesson_number: 1,
+                lesson_title: "",
+                notes: "",
+                is_taught: false,
+              });
+              setAddModalOpen(true);
+            }}
+            className="h-6 px-2 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity gap-0.5"
+          >
+            <Plus className="w-3 h-3" /> Thêm
+          </Button>
+        </div>
+      );
+    }
+
+    const isTaught = !!entry.is_taught;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lessonDate = parseDateStr(entry.date_str);
+    const isDelayed = !isTaught && lessonDate && lessonDate < today;
+
+    return (
+      <div
+        key={entry.id}
+        className={`pt-3 first:pt-0 space-y-2 group p-2.5 rounded-xl transition-colors ${
+          isTaught
+            ? "bg-emerald-50/40 dark:bg-emerald-950/20"
+            : isDelayed
+            ? "bg-amber-50/30 dark:bg-amber-950/15"
+            : ""
+        }`}
+      >
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Checkbox
+              checked={isTaught}
+              onCheckedChange={() => handleToggleTaught(entry)}
+              disabled={togglingId === entry.id}
+              aria-label="Tick tiết đã dạy"
+              className="w-4 h-4"
+            />
+            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded font-bold text-xs font-mono border ${
+              isAfternoon
+                ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"
+                : "bg-amber-50/80 dark:bg-amber-950/30 text-amber-900 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+            }`}>
+              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>{isAfternoon ? `Tiết ${entry.period} (T${entry.period - 5} Chiều)` : `Tiết ${entry.period}`}</span>
+            </span>
+            <span className="px-2.5 py-1 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs">
+              {entry.class_name}
+            </span>
+            {isChuyenDeLesson(entry.ppct_lesson_number, entry.notes, entry.lesson_title) ? (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full font-mono font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-xs shadow-2xs">
+                <BookOpen className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span>Tiết PPCT {formatPPCTLessonNumber(entry.ppct_lesson_number, entry.notes, entry.lesson_title)}</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs">
+                <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>{entry.ppct_lesson_number ? `Tiết PPCT ${entry.ppct_lesson_number}` : "PPCT: -"}</span>
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleOpenEdit(entry)}
+              className="h-7 w-7 text-slate-400 hover:text-emerald-600"
+              title="Sửa"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleDeleteEntry(entry.id)}
+              className="h-7 w-7 text-slate-400 hover:text-red-600"
+              title="Xóa"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="pl-6 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <p
+              className={`font-bold text-sm leading-snug ${
+                isTaught
+                  ? "text-emerald-900 dark:text-emerald-200"
+                  : "text-slate-900 dark:text-slate-100"
+              }`}
+            >
+              {entry.lesson_title}
+            </p>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleToggleTaught(entry)}
+                disabled={togglingId === entry.id}
+                className={`relative inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-bold transition-colors duration-150 cursor-pointer shadow-2xs select-none ${
+                  isTaught
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20 border border-emerald-600"
+                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-slate-700"
+                }`}
+                title={isTaught ? "Trạng thái: Đã dạy (Nhấn để chuyển sang Chưa dạy)" : "Trạng thái: Chưa dạy (Nhấn để chuyển sang Đã dạy)"}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isTaught ? "bg-white" : "bg-slate-400"
+                  }`}
+                />
+                {isTaught ? (
+                  <span className="flex items-center gap-1 font-bold">
+                    <Check className="w-3 h-3 stroke-[3]" />
+                    <span>Đã dạy</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 font-medium">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    <span>Chưa dạy</span>
+                  </span>
+                )}
+              </button>
+
+              {entry.is_custom && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300">
+                  Đã sửa
+                </span>
+              )}
+            </div>
+          </div>
+
+          {entry.notes && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+              ĐDDH: {entry.notes}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Banner & Fast Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] p-4 rounded-lg shadow-2xs">
         <div>
-          <h2 className="text-sm font-bold text-[#24292f] dark:text-[#c9d1d9] flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-bold text-[#24292f] dark:text-[#c9d1d9] flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-600" />
             Sổ Báo Giảng & Theo Dõi Tiến Độ Dạy Học Tự Động
           </h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Tự động sinh sổ cho toàn bộ 35 tuần năm học, đối chiếu PPCT & TKB, tick chọn tiết đã dạy và thống kê tiến độ
           </p>
         </div>
@@ -750,7 +1351,7 @@ export function SoBaoGiangTab() {
                   <Settings2 className="w-3.5 h-3.5 text-emerald-600" />
                   Cấu hình ngày bắt đầu thời khóa biểu (Tuần 1)
                 </span>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Khi bạn thay đổi ngày này, toàn bộ ngày Thứ Hai của các Tuần 1 → 35 sẽ tự động được tính chính xác mà không cần chọn lại từng tuần.
                 </p>
               </div>
@@ -783,14 +1384,14 @@ export function SoBaoGiangTab() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
           <div className="flex flex-wrap items-center gap-2">
             {/* Session Filters (Sáng / Chiều / Cả ngày) */}
-            <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-md p-0.5 bg-slate-50 dark:bg-[#0d1117] text-xs shrink-0">
+            <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-lg p-0.5 bg-slate-50 dark:bg-[#0d1117] text-xs shrink-0">
               <button
                 type="button"
                 onClick={() => setSessionFilter("all")}
-                className={`px-2 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
                   sessionFilter === "all"
-                    ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-2xs"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                    ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-xs"
+                    : "text-slate-700 dark:text-slate-300 hover:text-slate-900 font-medium"
                 }`}
               >
                 Cả ngày ({entries.length})
@@ -798,10 +1399,10 @@ export function SoBaoGiangTab() {
               <button
                 type="button"
                 onClick={() => setSessionFilter("morning")}
-                className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                   sessionFilter === "morning"
-                    ? "bg-amber-600 text-white shadow-2xs"
-                    : "text-amber-800 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "text-amber-900 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-medium"
                 }`}
               >
                 <span>☀️</span>
@@ -811,10 +1412,10 @@ export function SoBaoGiangTab() {
               <button
                 type="button"
                 onClick={() => setSessionFilter("afternoon")}
-                className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                   sessionFilter === "afternoon"
-                    ? "bg-indigo-600 text-white shadow-2xs"
-                    : "text-indigo-800 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-indigo-900 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 font-medium"
                 }`}
               >
                 <span>🌙</span>
@@ -828,7 +1429,7 @@ export function SoBaoGiangTab() {
               <button
                 type="button"
                 onClick={() => setStatusFilter("all")}
-                className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                   statusFilter === "all"
                     ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
                     : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
@@ -839,7 +1440,7 @@ export function SoBaoGiangTab() {
               <button
                 type="button"
                 onClick={() => setStatusFilter("pending")}
-                className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                   statusFilter === "pending"
                     ? "bg-amber-600 text-white"
                     : "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100"
@@ -850,7 +1451,7 @@ export function SoBaoGiangTab() {
               <button
                 type="button"
                 onClick={() => setStatusFilter("taught")}
-                className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                   statusFilter === "taught"
                     ? "bg-emerald-600 text-white"
                     : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100"
@@ -862,7 +1463,7 @@ export function SoBaoGiangTab() {
                 <button
                   type="button"
                   onClick={() => setStatusFilter("delayed")}
-                  className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                     statusFilter === "delayed"
                       ? "bg-red-600 text-white"
                       : "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 hover:bg-red-100"
@@ -882,7 +1483,7 @@ export function SoBaoGiangTab() {
                   size="sm"
                   variant={showEmptyPeriods ? "default" : "outline"}
                   onClick={() => setShowEmptyPeriods(!showEmptyPeriods)}
-                  className={`h-7 text-[11px] gap-1 px-2.5 font-medium ${
+                  className={`h-8 text-xs gap-1 px-2.5 font-medium ${
                     showEmptyPeriods
                       ? "bg-slate-700 text-white hover:bg-slate-800"
                       : "text-slate-600 dark:text-slate-400 border-[#d0d7de] dark:border-[#30363d]"
@@ -897,10 +1498,10 @@ export function SoBaoGiangTab() {
                   variant="outline"
                   disabled={isBatchUpdating}
                   onClick={() => handleBatchToggleWeekTaught(true)}
-                  className="h-7 text-[11px] gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-400 bg-emerald-50/40 hover:bg-emerald-100"
+                  className="h-8 text-xs gap-1 border-emerald-300 text-emerald-700 dark:text-emerald-400 bg-emerald-50/40 hover:bg-emerald-100 font-medium"
                   title="Đánh dấu tất cả các tiết trong tuần này là đã dạy"
                 >
-                  <CheckCircle className="w-3 h-3 text-emerald-600" />
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Đã dạy cả tuần {weekNumber}</span>
                 </Button>
 
@@ -909,7 +1510,7 @@ export function SoBaoGiangTab() {
                   variant="outline"
                   disabled={isBatchUpdating}
                   onClick={() => handleBatchToggleWeekTaught(false)}
-                  className="h-7 text-[11px] gap-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+                  className="h-8 text-xs gap-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 font-medium"
                   title="Hủy đánh dấu tất cả các tiết trong tuần này"
                 >
                   <span>↩️ Bỏ tick tuần</span>
@@ -919,7 +1520,7 @@ export function SoBaoGiangTab() {
                   size="sm"
                   variant="ghost"
                   onClick={handleClearWeek}
-                  className="h-7 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1 px-1.5"
+                  className="h-8 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1 px-2"
                   title="Xóa tiết tuần này"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -931,7 +1532,7 @@ export function SoBaoGiangTab() {
               size="sm"
               variant="ghost"
               onClick={loadEntries}
-              className="h-7 text-xs gap-1 text-slate-500 px-2"
+              className="h-8 text-xs gap-1 text-slate-500 px-2 font-medium"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Làm mới
@@ -951,7 +1552,7 @@ export function SoBaoGiangTab() {
                 <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300">
                   Đã dạy: {progressStats.taught}/{progressStats.total} tiết
                 </span>
-                <span className="font-bold text-[11px] text-emerald-600 ml-1">
+                <span className="font-bold text-xs text-emerald-600 ml-1">
                   ({progressStats.completionRate}%)
                 </span>
               </div>
@@ -1035,12 +1636,12 @@ export function SoBaoGiangTab() {
 
           {/* Breakdown by classes */}
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <span className="text-[11px] font-semibold text-slate-500 shrink-0">Tiến độ theo lớp:</span>
+            <span className="text-xs font-semibold text-slate-500 shrink-0">Tiến độ theo lớp:</span>
             {Object.entries(progressStats.byClass).map(([cls, stat]) => (
               <Badge
                 key={cls}
                 variant="outline"
-                className={`text-[10px] px-2 py-0.5 font-medium transition-colors ${
+                className={`text-xs px-2 py-0.5 font-medium transition-colors ${
                   stat.taught === stat.total
                     ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800 dark:text-emerald-300"
                     : "bg-white dark:bg-[#161b22] border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"
@@ -1066,7 +1667,7 @@ export function SoBaoGiangTab() {
             <p className="font-semibold text-slate-700 dark:text-slate-300 text-sm">
               Chưa có dữ liệu Sổ Báo Giảng cho Tuần {weekNumber}
             </p>
-            <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
               Đảm bảo bạn đã nạp file PPCT và TKB, sau đó nhấn nút{" "}
               <strong>"Tự Động Sinh Sổ (Tất Cả Tuần)"</strong> ở góc trên.
             </p>
@@ -1140,10 +1741,23 @@ export function SoBaoGiangTab() {
               if (dayEntries.length === 0) return null;
 
               const dayTaughtCount = dayEntries.filter((e) => e.is_taught).length;
-              const maxPeriod = Math.max(...dayEntries.map((e) => e.period), 5);
-              const dayPeriods = showEmptyPeriods && statusFilter === "all"
-                ? (maxPeriod <= 5 ? [1, 2, 3, 4, 5] : Array.from({ length: Math.max(10, maxPeriod) }, (_, i) => i + 1))
-                : dayEntries.map((e) => e.period);
+              const morningEntries = dayEntries.filter((e) => e.period <= 5);
+              const afternoonEntries = dayEntries.filter((e) => e.period > 5);
+              const morningTaughtCount = morningEntries.filter((e) => e.is_taught).length;
+              const afternoonTaughtCount = afternoonEntries.filter((e) => e.is_taught).length;
+
+              const hasAfternoonEntriesInWeek = entries.some((e) => e.period > 5);
+              const showMorning = sessionFilter !== "afternoon" && (morningEntries.length > 0 || showEmptyPeriods);
+              const showAfternoon = sessionFilter !== "morning" && (afternoonEntries.length > 0 || (showEmptyPeriods && (hasAfternoonEntriesInWeek || sessionFilter === "afternoon")));
+
+              const morningPeriods = showEmptyPeriods && statusFilter === "all"
+                ? [1, 2, 3, 4, 5]
+                : morningEntries.map((e) => e.period).sort((a, b) => a - b);
+              const afternoonPeriods = showEmptyPeriods && statusFilter === "all"
+                ? [6, 7, 8, 9, 10]
+                : afternoonEntries.map((e) => e.period).sort((a, b) => a - b);
+
+              if (!showMorning && !showAfternoon) return null;
 
               return (
                 <div key={`mobile-day-${dayNum}`} className="space-y-0">
@@ -1154,195 +1768,50 @@ export function SoBaoGiangTab() {
                       <span className="text-emerald-900 dark:text-emerald-300 font-bold text-xs">
                         {DAY_NAMES[dayNum]}
                       </span>
-                      <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                      <span className="text-slate-500 dark:text-slate-400 font-mono text-xs">
                         ({dayEntries[0]?.date_str})
                       </span>
                     </div>
-                    <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
                       {dayTaughtCount}/{dayEntries.length} tiết đã dạy
                     </span>
                   </div>
 
-                  {/* Day Lessons List */}
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {dayPeriods.map((periodNum) => {
-                      const entry = dayEntries.find((e) => e.period === periodNum);
+                  {/* Morning Section */}
+                  {showMorning && (
+                    <div>
+                      <div className="bg-amber-50/80 dark:bg-amber-950/30 px-3.5 py-1.5 flex items-center justify-between border-b border-amber-200/80 dark:border-amber-900/40">
+                        <span className="font-bold text-xs text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                          <span>☀️</span>
+                          <span>BUỔI SÁNG (Tiết 1 → 5)</span>
+                        </span>
+                        <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
+                          {morningTaughtCount}/{morningEntries.length} đã dạy
+                        </span>
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {morningPeriods.map((p) => renderMobilePeriodItem(dayNum, p, dayEntries))}
+                      </div>
+                    </div>
+                  )}
 
-                      if (!entry) {
-                        return (
-                          <div
-                            key={`mobile-empty-${dayNum}-${periodNum}`}
-                            className="p-3 bg-slate-50/40 dark:bg-[#161b22]/30 flex items-center justify-between text-xs text-slate-400"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-[11px] font-mono">
-                                Tiết {periodNum} {periodNum > 5 && `(T${periodNum - 5} Chiều)`}
-                              </span>
-                              <span className="italic text-[11px] text-slate-400/80">(Tiết trống)</span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingEntry(null);
-                                setEntryForm({
-                                  teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
-                                  day_of_week: dayNum,
-                                  period: periodNum,
-                                  class_name: "",
-                                  subject: "Toán",
-                                  ppct_lesson_number: 1,
-                                  lesson_title: "",
-                                  notes: "",
-                                  is_taught: false,
-                                });
-                                setAddModalOpen(true);
-                              }}
-                              className="h-6 px-2 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1 font-medium"
-                            >
-                              <Plus className="w-3 h-3" /> Thêm tiết
-                            </Button>
-                          </div>
-                        );
-                      }
-
-                      const isTaught = !!entry.is_taught;
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const lessonDate = parseDateStr(entry.date_str);
-                      const isDelayed = !isTaught && lessonDate && lessonDate < today;
-
-                      return (
-                        <div
-                          key={`mobile-entry-${entry.id}`}
-                          className={`p-3 transition-colors ${
-                            isTaught
-                              ? "bg-emerald-50/30 dark:bg-emerald-950/20"
-                              : isDelayed
-                              ? "bg-amber-50/30 dark:bg-amber-950/15"
-                              : "bg-white dark:bg-[#161b22]"
-                          }`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            {/* Tap-Friendly Checkbox */}
-                            <button
-                              type="button"
-                              onClick={() => handleToggleTaught(entry)}
-                              disabled={togglingId === entry.id}
-                              className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                                isTaught
-                                  ? "bg-emerald-600 text-white shadow-xs"
-                                  : "border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500 bg-white dark:bg-[#0d1117]"
-                              }`}
-                              title={isTaught ? "Click để chuyển về Chưa dạy" : "Click để tick Đã dạy"}
-                            >
-                              {isTaught && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </button>
-
-                            {/* Main Lesson Info */}
-                            <div className="flex-1 min-w-0 space-y-1.5">
-                                {/* Badges Row: Explicitly distinguish Tiết TKB vs Tiết PPCT */}
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  {/* 1. Tiết TKB (thứ tự trong ngày) */}
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-[#21262d] text-slate-800 dark:text-slate-200 font-bold text-[11px] font-mono border border-slate-300 dark:border-slate-700">
-                                    <Clock className="w-3 h-3 text-slate-500 shrink-0" />
-                                    <span>Tiết TKB {entry.period}</span>
-                                    {entry.period > 5 && <span className="text-[10px] text-slate-500 font-normal">(Chiều)</span>}
-                                  </span>
-
-                                  {/* 2. Lớp học */}
-                                  <span className="inline-block px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[11px]">
-                                    {entry.class_name}
-                                  </span>
-
-                                  {/* 3. Môn học */}
-                                  <span className="inline-block px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-slate-700">
-                                    {entry.subject}
-                                  </span>
-
-                                  {/* 4. Tiết PPCT (theo phân phối chương trình) */}
-                                  {isChuyenDeLesson(entry.ppct_lesson_number, entry.notes, entry.lesson_title) ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[11px]">
-                                      <BookOpen className="w-3 h-3 text-purple-600 shrink-0" />
-                                      <span>Tiết PPCT {formatPPCTLessonNumber(entry.ppct_lesson_number, entry.notes, entry.lesson_title)}</span>
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px]">
-                                      <BookOpen className="w-3 h-3 text-blue-600 shrink-0" />
-                                      <span>{entry.ppct_lesson_number ? `Tiết PPCT ${entry.ppct_lesson_number}` : "PPCT: -"}</span>
-                                    </span>
-                                  )}
-                                </div>
-
-                              {/* Lesson Title */}
-                              <p
-                                className={`text-xs font-semibold leading-relaxed ${
-                                  isTaught
-                                    ? "text-emerald-950 dark:text-emerald-200"
-                                    : "text-slate-900 dark:text-slate-100"
-                                }`}
-                              >
-                                {entry.lesson_title}
-                              </p>
-
-                              {/* Notes / ĐDDH */}
-                              {entry.notes && (
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                                  ĐDDH: {entry.notes}
-                                </p>
-                              )}
-
-                              {/* Bottom Status & Action Buttons */}
-                              <div className="flex items-center justify-between pt-1 gap-2">
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleTaught(entry)}
-                                    disabled={togglingId === entry.id}
-                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold transition-colors ${
-                                      isTaught
-                                        ? "bg-emerald-600 text-white"
-                                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
-                                    }`}
-                                  >
-                                    <span className={`w-1.5 h-1.5 rounded-full ${isTaught ? "bg-white" : "bg-slate-400"}`} />
-                                    <span>{isTaught ? "Đã dạy" : "Chưa dạy"}</span>
-                                  </button>
-
-                                  {entry.is_custom && (
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300">
-                                      Đã sửa
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleOpenEdit(entry)}
-                                    className="h-7 w-7 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                                    title="Sửa tiết"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteEntry(entry.id)}
-                                    className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                    title="Xóa tiết"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {/* Afternoon Section */}
+                  {showAfternoon && (
+                    <div>
+                      <div className="bg-indigo-50/80 dark:bg-indigo-950/30 px-3.5 py-1.5 flex items-center justify-between border-t border-b border-indigo-200/80 dark:border-indigo-900/40">
+                        <span className="font-bold text-xs text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                          <span>🌙</span>
+                          <span>BUỔI CHIỀU (Tiết 1 → 5 Chiều / Tiết 6 → 10)</span>
+                        </span>
+                        <span className="text-xs font-semibold text-indigo-800 dark:text-indigo-300 bg-indigo-100/80 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                          {afternoonTaughtCount}/{afternoonEntries.length} đã dạy
+                        </span>
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {afternoonPeriods.map((p) => renderMobilePeriodItem(dayNum, p, dayEntries))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1351,7 +1820,7 @@ export function SoBaoGiangTab() {
           {/* DESKTOP VIEW (hidden md:block): Multi-Column Standard Education Table */}
           <div className="hidden md:block overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-xs border-collapse min-w-[760px]">
-              <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-[11px]">
+              <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-xs">
                 <tr>
                   <th className="px-3 py-3 w-16 text-center border-r border-white/20" title="Tick chọn khi đã dạy xong tiết này">
                     Đã dạy
@@ -1373,10 +1842,23 @@ export function SoBaoGiangTab() {
                   if (dayEntries.length === 0) return null;
 
                   const dayTaughtCount = dayEntries.filter((e) => e.is_taught).length;
-                  const maxPeriod = Math.max(...dayEntries.map((e) => e.period), 5);
-                  const dayPeriods = showEmptyPeriods && statusFilter === "all"
-                    ? (maxPeriod <= 5 ? [1, 2, 3, 4, 5] : Array.from({ length: Math.max(10, maxPeriod) }, (_, i) => i + 1))
-                    : dayEntries.map((e) => e.period);
+                  const morningEntries = dayEntries.filter((e) => e.period <= 5);
+                  const afternoonEntries = dayEntries.filter((e) => e.period > 5);
+                  const morningTaughtCount = morningEntries.filter((e) => e.is_taught).length;
+                  const afternoonTaughtCount = afternoonEntries.filter((e) => e.is_taught).length;
+
+                  const hasAfternoonEntriesInWeek = entries.some((e) => e.period > 5);
+                  const showMorning = sessionFilter !== "afternoon" && (morningEntries.length > 0 || showEmptyPeriods);
+                  const showAfternoon = sessionFilter !== "morning" && (afternoonEntries.length > 0 || (showEmptyPeriods && (hasAfternoonEntriesInWeek || sessionFilter === "afternoon")));
+
+                  const morningPeriods = showEmptyPeriods && statusFilter === "all"
+                    ? [1, 2, 3, 4, 5]
+                    : morningEntries.map((e) => e.period).sort((a, b) => a - b);
+                  const afternoonPeriods = showEmptyPeriods && statusFilter === "all"
+                    ? [6, 7, 8, 9, 10]
+                    : afternoonEntries.map((e) => e.period).sort((a, b) => a - b);
+
+                  if (!showMorning && !showAfternoon) return null;
 
                   return (
                     <React.Fragment key={`day-group-${dayNum}`}>
@@ -1389,12 +1871,12 @@ export function SoBaoGiangTab() {
                               <span className="text-emerald-800 dark:text-emerald-300 font-bold text-xs">
                                 {DAY_NAMES[dayNum]}
                               </span>
-                              <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                              <span className="text-slate-500 dark:text-slate-400 font-mono text-xs">
                                 ({dayEntries[0]?.date_str})
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
                                 {dayTaughtCount}/{dayEntries.length} tiết đã dạy
                               </span>
                             </div>
@@ -1402,252 +1884,45 @@ export function SoBaoGiangTab() {
                         </td>
                       </tr>
 
-                      {/* Day Lessons & Empty Periods */}
-                      {dayPeriods.map((periodNum, periodIdx) => {
-                        const entry = dayEntries.find((e) => e.period === periodNum);
-
-                        if (!entry) {
-                          // Render Empty Period Row
-                          return (
-                            <tr
-                              key={`empty-${dayNum}-${periodNum}`}
-                              className="bg-slate-50/25 dark:bg-[#161b22]/20 hover:bg-slate-50/70 dark:hover:bg-[#21262d]/40 transition-colors text-slate-400 group"
-                            >
-                              <td className="px-3 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d] text-slate-300 dark:text-slate-600 font-mono text-xs">
-                                -
-                              </td>
-                              <td className="px-3 py-2 text-center font-normal text-slate-400 dark:text-slate-500 border-r border-[#d0d7de] dark:border-[#30363d]">
-                                <span className="text-[11px]">{DAY_NAMES[dayNum]}</span>
-                              </td>
-                              <td className="px-2.5 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
-                                <span className="inline-block px-2 py-0.5 rounded bg-slate-100/70 dark:bg-[#21262d]/70 text-slate-500 dark:text-slate-400 font-bold text-xs font-mono">
-                                  Tiết {periodNum} {periodNum > 5 && `(T${periodNum - 5} Chiều)`}
+                      {/* Buổi Sáng */}
+                      {showMorning && (
+                        <>
+                          <tr className="bg-amber-50/80 dark:bg-amber-950/25 border-y border-amber-200/80 dark:border-amber-900/40">
+                            <td colSpan={9} className="py-1 px-3.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-xs text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                                  <span>☀️</span>
+                                  <span>BUỔI SÁNG (Tiết 1 → 5)</span>
                                 </span>
-                              </td>
-                              <td className="px-2.5 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d] text-slate-400 dark:text-slate-500 font-mono">
-                                -
-                              </td>
-                              <td className="px-3 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d] text-slate-400 dark:text-slate-500">
-                                -
-                              </td>
-                              <td className="px-2.5 py-2 text-center border-r border-[#d0d7de] dark:border-[#30363d] text-slate-400 dark:text-slate-500 font-mono">
-                                -
-                              </td>
-                              <td className="px-4 py-2 border-r border-[#d0d7de] dark:border-[#30363d] text-slate-400 dark:text-slate-500 text-[11px]">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="italic text-slate-400/80 dark:text-slate-500/80 font-normal">
-                                    (Tiết trống)
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setEditingEntry(null);
-                                      setEntryForm({
-                                        teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
-                                        day_of_week: dayNum,
-                                        period: periodNum,
-                                        class_name: "",
-                                        subject: "Toán",
-                                        ppct_lesson_number: 1,
-                                        lesson_title: "",
-                                        notes: "",
-                                        is_taught: false,
-                                      });
-                                      setAddModalOpen(true);
-                                    }}
-                                    className="h-5 px-1.5 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 opacity-0 group-hover:opacity-100 transition-opacity gap-1"
-                                    title="Thêm tiết dạy vào khung giờ này"
-                                  >
-                                    <Plus className="w-2.5 h-2.5" /> Thêm tiết
-                                  </Button>
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 text-slate-400 dark:text-slate-500 text-[11px] border-r border-[#d0d7de] dark:border-[#30363d]">
-                                -
-                              </td>
-                              <td className="px-3 py-2 text-right whitespace-nowrap">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    setEditingEntry(null);
-                                    setEntryForm({
-                                      teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
-                                      day_of_week: dayNum,
-                                      period: periodNum,
-                                      class_name: "",
-                                      subject: "Toán",
-                                      ppct_lesson_number: 1,
-                                      lesson_title: "",
-                                      notes: "",
-                                      is_taught: false,
-                                    });
-                                    setAddModalOpen(true);
-                                  }}
-                                  className="h-7 w-7 text-slate-300 dark:text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                                  title="Thêm tiết vào khung giờ này"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        }
-
-                        const isTaught = !!entry.is_taught;
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const lessonDate = parseDateStr(entry.date_str);
-                        const isDelayed = !isTaught && lessonDate && lessonDate < today;
-
-                        return (
-                          <tr
-                            key={entry.id}
-                            className={`transition-colors ${
-                              isTaught
-                                ? "bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-50/60"
-                                : isDelayed
-                                ? "bg-amber-50/30 dark:bg-amber-950/15 hover:bg-amber-50/50"
-                                : periodIdx % 2 === 1
-                                ? "bg-slate-50/40 dark:bg-[#161b22]/40 hover:bg-slate-100/60"
-                                : "hover:bg-slate-50/80"
-                            }`}
-                          >
-                            {/* Checkbox Tick Tiết Đã Dạy */}
-                            <td className="px-3 py-2.5 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
-                              <div className="flex items-center justify-center">
-                                <Checkbox
-                                  checked={isTaught}
-                                  onCheckedChange={() => handleToggleTaught(entry)}
-                                  disabled={togglingId === entry.id}
-                                  aria-label="Tick chọn tiết đã dạy"
-                                  title={isTaught ? "Đã dạy (Click để hủy)" : "Chưa dạy (Click để tick đã dạy)"}
-                                />
-                              </div>
-                            </td>
-
-                            <td className="px-3 py-2.5 text-center font-semibold text-slate-600 dark:text-slate-400 border-r border-[#d0d7de] dark:border-[#30363d]">
-                              <span className="text-[11px]">{DAY_NAMES[entry.day_of_week]}</span>
-                            </td>
-
-                            <td className="px-2.5 py-2.5 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-[#21262d] text-slate-700 dark:text-slate-300 font-bold text-xs font-mono border border-slate-200 dark:border-slate-700">
-                                <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                                <span>Tiết {entry.period}</span>
-                              </span>
-                            </td>
-
-                            <td className="px-2.5 py-2.5 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
-                              <span className="inline-block px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs">
-                                {entry.class_name}
-                              </span>
-                            </td>
-
-                            <td className="px-3 py-2.5 text-center font-medium text-slate-700 dark:text-slate-300 border-r border-[#d0d7de] dark:border-[#30363d]">
-                              {entry.subject}
-                            </td>
-
-                            <td className="px-2.5 py-2.5 text-center border-r border-[#d0d7de] dark:border-[#30363d]">
-                              {isChuyenDeLesson(entry.ppct_lesson_number, entry.notes, entry.lesson_title) ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-xs shadow-2xs">
-                                  <BookOpen className="w-3 h-3 text-purple-600 shrink-0" />
-                                  <span>Tiết {formatPPCTLessonNumber(entry.ppct_lesson_number, entry.notes, entry.lesson_title)}</span>
+                                <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-900/40 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+                                  {morningTaughtCount}/{morningEntries.length} tiết đã dạy
                                 </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs">
-                                  <BookOpen className="w-3 h-3 text-blue-600 shrink-0" />
-                                  <span>{entry.ppct_lesson_number ? `Tiết ${entry.ppct_lesson_number}` : "-"}</span>
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="px-4 py-2.5 border-r border-[#d0d7de] dark:border-[#30363d]">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="space-y-0.5">
-                                  <span
-                                    className={`font-semibold leading-snug ${
-                                      isTaught
-                                        ? "text-emerald-900 dark:text-emerald-200"
-                                        : "text-slate-900 dark:text-slate-100"
-                                    }`}
-                                  >
-                                    {entry.lesson_title}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  {/* 2-State Toggle Button: [✓ Đã dạy] ⇄ [Chưa dạy] */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleTaught(entry)}
-                                    disabled={togglingId === entry.id}
-                                    className={`relative inline-flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-semibold transition-colors duration-150 cursor-pointer shadow-2xs select-none ${
-                                      isTaught
-                                        ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20 border border-emerald-600"
-                                        : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-slate-700"
-                                    }`}
-                                    title={isTaught ? "Trạng thái: Đã dạy (Nhấn để chuyển sang Chưa dạy)" : "Trạng thái: Chưa dạy (Nhấn để chuyển sang Đã dạy)"}
-                                  >
-                                    <span
-                                      className={`w-1.5 h-1.5 rounded-full ${
-                                        isTaught ? "bg-white" : "bg-slate-400"
-                                      }`}
-                                    />
-                                    {isTaught ? (
-                                      <span className="flex items-center gap-1 font-bold">
-                                        <Check className="w-3 h-3 stroke-[3]" />
-                                        <span>Đã dạy</span>
-                                      </span>
-                                    ) : (
-                                      <span className="flex items-center gap-1 font-medium">
-                                        <Clock className="w-3 h-3 text-slate-400" />
-                                        <span>Chưa dạy</span>
-                                      </span>
-                                    )}
-                                  </button>
-
-                                  {/* Badge Đã sửa (nếu có tùy chỉnh) */}
-                                  {entry.is_custom && (
-                                    <span
-                                      className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300"
-                                      title="Tiết này đã được tùy chỉnh nội dung"
-                                    >
-                                      Đã sửa
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-
-                            <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 text-[11px] border-r border-[#d0d7de] dark:border-[#30363d] max-w-xs truncate">
-                              {entry.notes || "-"}
-                            </td>
-
-                            <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleOpenEdit(entry)}
-                                  className="h-7 w-7 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                                  title="Chỉnh sửa nội dung tiết"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteEntry(entry.id)}
-                                  className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                  title="Xóa tiết"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
                               </div>
                             </td>
                           </tr>
-                        );
-                      })}
+                          {morningPeriods.map((p, pIdx) => renderDesktopRow(p, pIdx, dayNum, dayEntries))}
+                        </>
+                      )}
+
+                      {/* Buổi Chiều */}
+                      {showAfternoon && (
+                        <>
+                          <tr className="bg-indigo-50/80 dark:bg-indigo-950/25 border-y border-indigo-200/80 dark:border-indigo-900/40">
+                            <td colSpan={9} className="py-1 px-3.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-xs text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                                  <span>🌙</span>
+                                  <span>BUỔI CHIỀU (Tiết 1 → 5 Chiều / Tiết 6 → 10)</span>
+                                </span>
+                                <span className="text-xs font-semibold text-indigo-800 dark:text-indigo-300 bg-indigo-100/90 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                                  {afternoonTaughtCount}/{afternoonEntries.length} tiết đã dạy
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                          {afternoonPeriods.map((p, pIdx) => renderDesktopRow(p, pIdx, dayNum, dayEntries))}
+                        </>
+                      )}
                     </React.Fragment>
                   );
                 })}
@@ -1661,7 +1936,7 @@ export function SoBaoGiangTab() {
               <strong className="text-emerald-700">{progressStats.taught}</strong> đã dạy,{" "}
               <strong className="text-slate-600">{progressStats.pending}</strong> chưa dạy)
             </span>
-            <span className="text-[11px] text-slate-400">
+            <span className="text-xs text-slate-500">
               💡 Bấm vào ô vuông đầu mỗi hàng để tick nhanh tiết đã dạy
             </span>
           </div>
@@ -1675,6 +1950,23 @@ export function SoBaoGiangTab() {
             if (dayEntries.length === 0) return null;
 
             const dayTaughtCount = dayEntries.filter((e) => e.is_taught).length;
+            const morningEntries = dayEntries.filter((e) => e.period <= 5);
+            const afternoonEntries = dayEntries.filter((e) => e.period > 5);
+            const morningTaughtCount = morningEntries.filter((e) => e.is_taught).length;
+            const afternoonTaughtCount = afternoonEntries.filter((e) => e.is_taught).length;
+
+            const hasAfternoonEntriesInWeek = entries.some((e) => e.period > 5);
+            const showMorning = sessionFilter !== "afternoon" && (morningEntries.length > 0 || showEmptyPeriods);
+            const showAfternoon = sessionFilter !== "morning" && (afternoonEntries.length > 0 || (showEmptyPeriods && (hasAfternoonEntriesInWeek || sessionFilter === "afternoon")));
+
+            const morningPeriods = showEmptyPeriods && statusFilter === "all"
+              ? [1, 2, 3, 4, 5]
+              : morningEntries.map((e) => e.period).sort((a, b) => a - b);
+            const afternoonPeriods = showEmptyPeriods && statusFilter === "all"
+              ? [6, 7, 8, 9, 10]
+              : afternoonEntries.map((e) => e.period).sort((a, b) => a - b);
+
+            if (!showMorning && !showAfternoon) return null;
 
             return (
               <div
@@ -1688,194 +1980,55 @@ export function SoBaoGiangTab() {
                     <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200">
                       {DAY_NAMES[dayNum]}
                     </h3>
-                    <span className="text-[11px] font-mono text-slate-500">
+                    <span className="text-xs font-mono text-slate-500">
                       {dayEntries[0]?.date_str}
                     </span>
                   </div>
                   <Badge
                     variant="outline"
-                    className="bg-white dark:bg-[#0d1117] border-emerald-300 text-emerald-700 dark:text-emerald-400 font-bold text-[10px] px-2 py-0.5"
+                    className="bg-white dark:bg-[#0d1117] border-emerald-300 text-emerald-700 dark:text-emerald-400 font-semibold text-xs px-2 py-0.5"
                   >
                     {dayTaughtCount}/{dayEntries.length} đã dạy
                   </Badge>
                 </div>
 
-                {/* Lesson Timeline Items */}
-                <div className="p-3 space-y-2.5 flex-1 divide-y divide-slate-100 dark:divide-[#30363d]">
-                  {(() => {
-                    const maxPeriod = Math.max(...dayEntries.map((e) => e.period), 5);
-                    const dayPeriods = showEmptyPeriods && statusFilter === "all"
-                      ? (maxPeriod <= 5 ? [1, 2, 3, 4, 5] : Array.from({ length: Math.max(10, maxPeriod) }, (_, i) => i + 1))
-                      : dayEntries.map((e) => e.period);
+                {/* Lesson Timeline Items grouped by Morning and Afternoon */}
+                <div className="flex-1 flex flex-col">
+                  {/* Morning Section */}
+                  {showMorning && (
+                    <div className="p-3 pb-2 space-y-2">
+                      <div className="flex items-center justify-between px-2 text-xs font-bold text-amber-900 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-950/20 py-1 rounded">
+                        <span className="flex items-center gap-1.5">
+                          <span>☀️</span>
+                          <span>BUỔI SÁNG (Tiết 1 → 5)</span>
+                        </span>
+                        <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                          {morningTaughtCount}/{morningEntries.length}
+                        </span>
+                      </div>
+                      <div className="space-y-2 divide-y divide-slate-100 dark:divide-[#30363d]">
+                        {morningPeriods.map((p) => renderCardPeriodItem(dayNum, p, dayEntries))}
+                      </div>
+                    </div>
+                  )}
 
-                    return dayPeriods.map((periodNum) => {
-                      const entry = dayEntries.find((e) => e.period === periodNum);
-
-                      if (!entry) {
-                        return (
-                          <div
-                            key={`empty-card-${dayNum}-${periodNum}`}
-                            className="pt-2.5 first:pt-0 p-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-xs flex items-center justify-between group"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded bg-slate-100/60 dark:bg-[#21262d]/60 font-mono text-[11px] font-medium text-slate-500">
-                                Tiết {periodNum} {periodNum > 5 && `(T${periodNum - 5} Chiều)`}
-                              </span>
-                              <span className="italic text-[11px] text-slate-400">(Tiết trống)</span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingEntry(null);
-                                setEntryForm({
-                                  teacher_name: selectedTeacher !== "Tất cả" ? selectedTeacher : "Giáo viên",
-                                  day_of_week: dayNum,
-                                  period: periodNum,
-                                  class_name: "",
-                                  subject: "Toán",
-                                  ppct_lesson_number: 1,
-                                  lesson_title: "",
-                                  notes: "",
-                                  is_taught: false,
-                                });
-                                setAddModalOpen(true);
-                              }}
-                              className="h-6 px-1.5 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity gap-0.5"
-                            >
-                              <Plus className="w-3 h-3" /> Thêm
-                            </Button>
-                          </div>
-                        );
-                      }
-
-                      const isTaught = !!entry.is_taught;
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const lessonDate = parseDateStr(entry.date_str);
-                      const isDelayed = !isTaught && lessonDate && lessonDate < today;
-
-                      return (
-                        <div
-                          key={entry.id}
-                          className={`pt-2.5 first:pt-0 space-y-1.5 group p-2 rounded-lg transition-colors ${
-                            isTaught
-                              ? "bg-emerald-50/40 dark:bg-emerald-950/20"
-                              : isDelayed
-                              ? "bg-amber-50/30 dark:bg-amber-950/15"
-                              : ""
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-1.5">
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                checked={isTaught}
-                                onCheckedChange={() => handleToggleTaught(entry)}
-                                disabled={togglingId === entry.id}
-                                aria-label="Tick tiết đã dạy"
-                              />
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-[#21262d] text-slate-700 dark:text-slate-300 font-bold text-[11px] font-mono border border-slate-200 dark:border-slate-700">
-                                <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                                <span>Tiết TKB {entry.period}</span>
-                              </span>
-                              <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px]">
-                                {entry.class_name}
-                              </span>
-                              {isChuyenDeLesson(entry.ppct_lesson_number, entry.notes, entry.lesson_title) ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[10px] shadow-2xs">
-                                  <BookOpen className="w-3 h-3 text-purple-600 shrink-0" />
-                                  <span>Tiết PPCT {formatPPCTLessonNumber(entry.ppct_lesson_number, entry.notes, entry.lesson_title)}</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10px]">
-                                  <BookOpen className="w-3 h-3 text-blue-600 shrink-0" />
-                                  <span>{entry.ppct_lesson_number ? `Tiết PPCT ${entry.ppct_lesson_number}` : "PPCT: -"}</span>
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleOpenEdit(entry)}
-                                className="h-6 w-6 text-slate-400 hover:text-emerald-600"
-                                title="Sửa"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteEntry(entry.id)}
-                                className="h-6 w-6 text-slate-400 hover:text-red-600"
-                                title="Xóa"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="pl-7 space-y-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <p
-                                className={`font-semibold text-xs leading-snug ${
-                                  isTaught
-                                    ? "text-emerald-900 dark:text-emerald-200"
-                                    : "text-slate-900 dark:text-slate-100"
-                                }`}
-                              >
-                                {entry.lesson_title}
-                              </p>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {/* 2-State Toggle Button: [✓ Đã dạy] ⇄ [Chưa dạy] */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleTaught(entry)}
-                                  disabled={togglingId === entry.id}
-                                  className={`relative inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold transition-colors duration-150 cursor-pointer shadow-2xs select-none ${
-                                    isTaught
-                                      ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20 border border-emerald-600"
-                                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-slate-700"
-                                  }`}
-                                  title={isTaught ? "Trạng thái: Đã dạy (Nhấn để chuyển sang Chưa dạy)" : "Trạng thái: Chưa dạy (Nhấn để chuyển sang Đã dạy)"}
-                                >
-                                  <span
-                                    className={`w-1.5 h-1.5 rounded-full ${
-                                      isTaught ? "bg-white" : "bg-slate-400"
-                                    }`}
-                                  />
-                                  {isTaught ? (
-                                    <span className="flex items-center gap-1 font-bold">
-                                      <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                      <span>Đã dạy</span>
-                                    </span>
-                                  ) : (
-                                    <span className="flex items-center gap-1 font-medium">
-                                      <Clock className="w-2.5 h-2.5 text-slate-400" />
-                                      <span>Chưa dạy</span>
-                                    </span>
-                                  )}
-                                </button>
-
-                                {entry.is_custom && (
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300">
-                                    Đã sửa
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {entry.notes && (
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                                ĐDDH: {entry.notes}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
+                  {/* Afternoon Section */}
+                  {showAfternoon && (
+                    <div className={`p-3 pt-2 space-y-2 ${showMorning ? "border-t border-dashed border-slate-200 dark:border-slate-800" : ""}`}>
+                      <div className="flex items-center justify-between px-2 text-xs font-bold text-indigo-900 dark:text-indigo-300 bg-indigo-50/60 dark:bg-indigo-950/20 py-1 rounded">
+                        <span className="flex items-center gap-1.5">
+                          <span>🌙</span>
+                          <span>BUỔI CHIỀU (Tiết 1 → 5 Chiều)</span>
+                        </span>
+                        <span className="text-xs font-semibold text-indigo-800 dark:text-indigo-300">
+                          {afternoonTaughtCount}/{afternoonEntries.length}
+                        </span>
+                      </div>
+                      <div className="space-y-2 divide-y divide-slate-100 dark:divide-[#30363d]">
+                        {afternoonPeriods.map((p) => renderCardPeriodItem(dayNum, p, dayEntries))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -1902,7 +2055,7 @@ export function SoBaoGiangTab() {
             <div className="border-2 border-emerald-500/80 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-bold text-[10px]">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-bold text-xs">
                     KHUYÊN DÙNG
                   </span>
                   <h4 className="font-bold text-emerald-950 dark:text-emerald-200 text-xs">
@@ -1911,7 +2064,7 @@ export function SoBaoGiangTab() {
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-normal">
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-normal">
                 Tự động nối tiếp bài dạy từ Tuần 1 đến Tuần 35 theo đúng TKB có hiệu lực của từng tuần. Toàn bộ ngày trong năm học được tính từ ngày bắt đầu ({semesterStartDate}). Các tiết bạn đã tick đã dạy sẽ được giữ nguyên.
               </p>
 
@@ -1956,7 +2109,7 @@ export function SoBaoGiangTab() {
                   Sinh riêng Tuần {weekNumber}
                 </Button>
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-xs text-slate-500">
                 Chỉ tạo lại các tiết báo giảng cho riêng tuần đang chọn trên màn hình.
               </p>
             </div>
@@ -1986,7 +2139,7 @@ export function SoBaoGiangTab() {
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="font-semibold block mb-1">Thứ trong tuần</label>
                 <Select
@@ -2009,7 +2162,45 @@ export function SoBaoGiangTab() {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">Tiết TKB</label>
+                <label className="font-semibold block mb-1">Buổi học</label>
+                <div className="flex items-center gap-1 h-8 bg-slate-100 dark:bg-[#21262d] p-0.5 rounded-md border border-[#d0d7de] dark:border-[#30363d]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Switch to morning: if current period > 5, map to 1..5
+                      const newPeriod = entryForm.period > 5 ? entryForm.period - 5 : entryForm.period;
+                      setEntryForm({ ...entryForm, period: newPeriod });
+                    }}
+                    className={`flex-1 h-full rounded text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${
+                      entryForm.period <= 5
+                        ? "bg-white dark:bg-[#161b22] text-amber-900 dark:text-amber-300 shadow-2xs border border-amber-300/60"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <span>☀️</span>
+                    <span>Sáng</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Switch to afternoon: if current period <= 5, map to 6..10
+                      const newPeriod = entryForm.period <= 5 ? entryForm.period + 5 : entryForm.period;
+                      setEntryForm({ ...entryForm, period: newPeriod });
+                    }}
+                    className={`flex-1 h-full rounded text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${
+                      entryForm.period > 5
+                        ? "bg-white dark:bg-[#161b22] text-indigo-900 dark:text-indigo-300 shadow-2xs border border-indigo-300/60"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <span>🌙</span>
+                    <span>Chiều</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">Tiết dạy</label>
                 <Select
                   value={String(entryForm.period)}
                   onValueChange={(val) =>
@@ -2020,11 +2211,17 @@ export function SoBaoGiangTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 10 }, (_, i) => i + 1).map((p) => (
-                      <SelectItem key={p} value={String(p)}>
-                        Tiết {p} ({p <= 5 ? "Sáng" : "Chiều"})
-                      </SelectItem>
-                    ))}
+                    {entryForm.period <= 5
+                      ? [1, 2, 3, 4, 5].map((p) => (
+                          <SelectItem key={p} value={String(p)}>
+                            Tiết {p} (Sáng)
+                          </SelectItem>
+                        ))
+                      : [6, 7, 8, 9, 10].map((p) => (
+                          <SelectItem key={p} value={String(p)}>
+                            Tiết {p - 5} Chiều (Tiết {p})
+                          </SelectItem>
+                        ))}
                   </SelectContent>
                 </Select>
               </div>

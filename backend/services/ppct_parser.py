@@ -172,52 +172,68 @@ def extract_ppct_with_gemini(
         return None
 
     prompt = f"""
-Bạn là chuyên gia phân tích và số hóa bảng Kế hoạch giáo dục / Phân phối chương trình (PPCT) môn {default_subject} {default_grade} THPT theo chuẩn Bộ GD&ĐT Việt Nam (GDPT 2018).
-Nhiệm vụ: Phân tích bảng dữ liệu từ {content_name} và trích xuất TOÀN BỘ danh sách từng tiết dạy học.
+Bạn là chuyên gia phân tích và số hóa bảng Kế hoạch giáo dục / Phân phối chương trình (PPCT) môn {default_subject} {default_grade} THPT theo chuẩn Bộ GD&ĐT Việt Nam (Chương trình GDPT 2018).
+Nhiệm vụ: Đọc kỹ toàn bộ văn bản/bảng dữ liệu từ {content_name} và trích xuất ĐẦY ĐỦ, CHÍNH XÁC 100% từng tiết bài dạy thành mảng JSON.
 
-================ CẤU TRÚC BẢNG ĐẶC TRƯNG CỦA PPCT TOÁN GDPT 2018 (BẢNG 5 CỘT) ================
-Bảng gồm 5 cột chính:
-- Cột 1: [Tuần] (ví dụ: '1 (7/9-12/9)', '2 (14/9-19/9)' -> Tuần lấy con số đầu: 1, 2, 3... 35).
-- Cột 2: [Tiết] (Đánh số từ 1 đến 105 cho phần Chính khóa).
-- Cột 3: [Chương/Bài] (Tên bài dạy Chính khóa).
-- Cột 4: [Tiết] (Đánh số từ 1 đến 35 cho phần Chuyên đề học tập).
-- Cột 5: [Chuyên đề học tập] (Tên bài Chuyên đề học tập).
+================ QUY TẮC NHẬN DIỆN CẤU TRÚC BẢNG PPCT ================
 
-================ QUY TẮC BẮT BUỘC ĐỂ TRÍCH XUẤT CHÍNH XÁC 100% ================
+Tài liệu PPCT ở trường học thường có 2 dạng chính, bạn phải tự động nhận diện dạng bảng:
 
-1. PHÂN TÁCH ĐỒNG THỜI CHÍNH KHÓA & CHUYÊN ĐỀ TRÊN TỪNG DÒNG:
-   - Khi Cột 2 có số tiết: Trích xuất một tiết Chính khóa với:
-     + "week": số tuần hiện tại (1..35)
-     + "lesson_number": số nguyên ở Cột 2 (ví dụ: 1, 2, 3... 105)
-     + "lesson_title": nội dung chữ ở Cột 3 (ví dụ: "§1. Mệnh đề", "§2. Tập hợp và các phép toán trên tập hợp")
-     + "notes": ""
-   - Khi Cột 4 có số tiết: Trích xuất một tiết Chuyên đề với:
-     + "week": số tuần hiện tại (1..35)
-     + "lesson_number": 105 + số nguyên ở Cột 4 (ví dụ: Tiết CĐ 1 ghi 106, Tiết CĐ 2 ghi 107, Tiết CĐ 3 ghi 108... Tiết CĐ 35 ghi 140)
-     + "lesson_title": nội dung chữ ở Cột 5 (ví dụ: "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "CĐ1-§2. Ứng dụng của hệ phương trình bậc nhất ba ẩn")
-     + "notes": "Chuyên đề"
+--- DẠNG 1: BẢNG SONG SONG 5 CỘT (Phổ biến ở môn Toán THPT GDPT 2018) ---
+- Cột 1: [Tuần] (ví dụ: 'Tuần 1', '1 (5/9-10/9)' -> tuần 1..35).
+- Cột 2: [Tiết] Chính khóa (Đánh số từ 1 đến 105).
+- Cột 3: [Chương/Bài] Tên bài Chính khóa.
+- Cột 4: [Tiết] Chuyên đề (Đánh số từ 1 đến 35, HOẶC để trống ở một số dòng).
+- Cột 5: [Chuyên đề học tập] Tên bài Chuyên đề.
+=> QUY TẮC XỬ LÝ DẠNG 1:
+   1. Ở mỗi dòng, nếu Cột 2 có số tiết: Trích xuất 1 tiết CHÍNH KHÓA:
+      - "week": tuần hiện tại
+      - "lesson_number": số nguyên ở Cột 2 (ví dụ: 1, 2, 3...)
+      - "lesson_title": nội dung tên bài ở Cột 3
+      - "notes": ""
+   2. Ở cùng dòng đó, NẾU Cột 4 có số tiết: Trích xuất THÊM 1 tiết CHUYÊN ĐỀ riêng biệt:
+      - "week": tuần hiện tại
+      - "lesson_number": 105 + số nguyên ở Cột 4 (ví dụ: Tiết CĐ 1 ghi 106, Tiết CĐ 2 ghi 107...)
+      - "lesson_title": nội dung tên chuyên đề ở Cột 5
+      - "notes": "Chuyên đề"
+   3. Nếu Cột 4 & Cột 5 để trống: TUYỆT ĐỐI KHÔNG trích xuất tiết Chuyên đề cho dòng đó.
 
-2. QUY TẮC Ô GỘP VÀ Ô TRỐNG (MERGED CELLS):
-   - Cột 1 (Tuần) thường bị gộp cho 3-4 dòng: Mọi dòng nằm trong khối gộp đó đều thuộc về Tuần đó cho đến khi xuất hiện số Tuần tiếp theo.
-   - Cột 4 & Cột 5 (Chuyên đề) thường chỉ có 1 tiết/tuần ở dòng đầu của tuần đó, các dòng sau bị trống -> Chỉ tạo tiết Chuyên đề khi Cột 4 có số tiết, không tạo tiết Chuyên đề ở các dòng trống.
+--- DẠNG 2: BẢNG CHUẨN ĐƠN (Các môn Văn, Lý, Hóa, Sinh, Sử, Địa, Tin, Anh, HĐTN...) HOẶC BẢNG TOÁN TUYẾN TÍNH ---
+- Cột [Tuần]: Tuần 1 đến 35.
+- Cột [Tiết / Tiết PPCT / Tiết theo PPCT]: Số thứ tự tiết học.
+- Cột [Tên bài dạy / Tên bài học / Nội dung / Chủ đề]: Tên bài học.
+- Cột [Số tiết / Thời lượng]: (nếu có).
+- Cột [Ghi chú / Thiết bị ĐDDH]: (nếu có).
+=> QUY TẮC XỬ LÝ DẠNG 2:
+   1. Nếu cột [Tiết] ghi khoảng (ví dụ: '1-3', '1, 2, 3', '4 -> 5'): Phải tách thành từng phần tử riêng biệt cho từng tiết (Tiết 1, Tiết 2, Tiết 3...) với cùng tuần và tên bài.
+   2. Nếu bảng ghi số tiết gộp và có cột [Số tiết] (ví dụ: bài A có 3 tiết): Tạo ra 3 phần tử tương ứng 3 tiết liên tiếp.
+   3. Nhận diện tiết Chuyên đề: Nếu tên bài hoặc ghi chú có chữ "chuyên đề" hoặc "CĐ": Đặt "notes": "Chuyên đề" và nếu số tiết <= 35 thì "lesson_number" = 105 + số tiết CĐ.
 
-3. LOẠI BỎ CÁC DÒNG TIÊU ĐỀ CHƯƠNG / CHUYÊN ĐỀ TỔNG QUÁT:
-   - Các dòng tiêu đề in hoa không có số tiết ở Cột 2 và Cột 4 (như:
+================ QUY TẮC CHUNG BẮT BUỘC ĐỂ ĐẠT ĐỘ CHÍNH XÁC 100% ================
+
+1. Ô GỘP TUẦN (MERGED CELLS):
+   - Cột Tuần thường bị gộp cho 3-5 dòng liên tiếp. Tất cả các dòng nằm trong phạm vi gộp đều thuộc về Tuần đó cho đến khi xuất hiện số Tuần mới.
+   - Luôn đảm bảo tuần từ 1 đến 35 (Học kỳ 1: Tuần 1-18; Học kỳ 2: Tuần 19-35).
+
+2. LOẠI BỎ TRIỆT ĐỂ TIÊU ĐỀ CHƯƠNG / CHỦ ĐỀ / HEADER KHÔNG PHẢI BÀI DẠY:
+   - Các dòng tiêu đề lớn in hoa, không có số tiết dạy cụ thể, hoặc chỉ ghi tổng số tiết chương (ví dụ:
      "CHƯƠNG I. MỆNH ĐỀ VÀ TẬP HỢP (9 TIẾT)",
-     "CHUYÊN ĐỀ 1. HỆ PHƯƠNG TRÌNH BẬC NHẤT BA ẨN (11 TIẾT)",
-     "CHƯƠNG II. BẤT PHƯƠNG TRÌNH VÀ HỆ BẤT PHƯƠNG TRÌNH BẬC NHẤT HAI ẨN (6 TIẾT)",
-     "CHƯƠNG III. HỆ THỨC LƯỢNG TRONG TAM GIÁC (7 TIẾT)")
-     -> ĐÂY LÀ DÒNG BANNER TIÊU ĐỀ CHƯƠNG, BỎ QUA HOÀN TOÀN, KHÔNG TẠO TIẾT HỌC!
+     "CHỦ ĐỀ 1: ... (10 TIẾT)",
+     "HỌC KỲ I: 18 TUẦN X 3 TIẾT = 54 TIẾT",
+     "BẢNG PHÂN PHỐI CHƯƠNG TRÌNH...")
+     -> BỎ QUA HOÀN TOÀN, TUYỆT ĐỐI KHÔNG TẠO TIẾT HỌC CHO DÒNG BANNER NÀY!
 
-4. GIỮ NGUYÊN VĂN TÊN BÀI HỌC THEO BẢNG GỐC:
-   - Nếu bảng gốc ghi từng dòng lặp lại:
-     Dòng 1: Tiết 1 | §1. Mệnh đề
-     Dòng 2: Tiết 2 | §1. Mệnh đề
-     Dòng 3: Tiết 3 | §1. Mệnh đề
-     Dòng 4: Tiết 4 | §1. Mệnh đề
-     -> Giữ nguyên tên bài "§1. Mệnh đề" cho cả 4 tiết với lesson_number tương ứng 1, 2, 3, 4.
+3. GIỮ NGUYÊN VẸN TÊN BÀI HỌC THEO BẢNG GỐC:
+   - Giữ nguyên ký hiệu, số thứ tự bài như bản gốc (ví dụ: "§1. Mệnh đề", "Bài 2. Tập hợp", "Bài tập cuối chương I", "Kiểm tra giữa kì 1").
+   - KHÔNG tự ý bịa đặt, không cắt bớt nội dung tên bài dạy.
 
-5. VÍ DỤ MINH HỌA ĐẦU RA MẪU:
+4. CẤU TRÚC ĐẦU RA MỖI PHẦN TỬ JSON:
+   - "week": số nguyên từ 1 đến 35.
+   - "lesson_number": số nguyên (chính khóa: 1..105, chuyên đề: 106..140).
+   - "lesson_title": chuỗi tên bài học chính xác.
+   - "notes": chuỗi ghi chú (ghi "Chuyên đề" nếu là tiết chuyên đề, hoặc ghi chú thiết bị nếu có, ngược lại để rỗng "").
+
+================ VÍ DỤ MINH HỌA ĐẦU RA MẪU ================
 [
   {{ "week": 1, "lesson_number": 1, "lesson_title": "§1. Mệnh đề", "notes": "" }},
   {{ "week": 1, "lesson_number": 2, "lesson_title": "§1. Mệnh đề", "notes": "" }},
@@ -226,11 +242,7 @@ Bảng gồm 5 cột chính:
   {{ "week": 2, "lesson_number": 4, "lesson_title": "§1. Mệnh đề", "notes": "" }},
   {{ "week": 2, "lesson_number": 5, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
   {{ "week": 2, "lesson_number": 6, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
-  {{ "week": 2, "lesson_number": 107, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }},
-  {{ "week": 3, "lesson_number": 7, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
-  {{ "week": 3, "lesson_number": 8, "lesson_title": "§2. Tập hợp và các phép toán trên tập hợp", "notes": "" }},
-  {{ "week": 3, "lesson_number": 9, "lesson_title": "Bài tập cuối chương I", "notes": "" }},
-  {{ "week": 3, "lesson_number": 108, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }}
+  {{ "week": 2, "lesson_number": 107, "lesson_title": "CĐ1-§1. Hệ phương trình bậc nhất ba ẩn", "notes": "Chuyên đề" }}
 ]
 
 TRẢ VỀ DUY NHẤT 1 MẢNG JSON HỢP LỆ (bắt đầu bằng [ và kết thúc bằng ]):

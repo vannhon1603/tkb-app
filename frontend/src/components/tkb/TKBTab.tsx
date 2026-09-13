@@ -72,6 +72,16 @@ const DAYS = [
   { num: 7, label: "Thứ Bảy" },
 ];
 
+/** Format week range: if from_week == to_week then 'Tuần X', otherwise 'Tuần X → Y' */
+export function formatWeekRange(fromWeek?: number, toWeek?: number): string {
+  const fw = fromWeek || 1;
+  const tw = toWeek || 35;
+  if (fw === tw) {
+    return `Tuần ${fw}`;
+  }
+  return `Tuần ${fw} → ${tw}`;
+}
+
 export function TKBTab() {
   const [slots, setSlots] = useState<TKBSlot[]>([]);
   const [teachers, setTeachers] = useState<string[]>([]);
@@ -977,11 +987,11 @@ export function TKBTab() {
       {/* Top action header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] p-4 rounded-lg shadow-2xs">
         <div>
-          <h2 className="text-sm font-bold text-[#24292f] dark:text-[#c9d1d9] flex items-center gap-1.5">
+          <h2 className="text-sm sm:text-base font-bold text-[#24292f] dark:text-[#c9d1d9] flex items-center gap-1.5">
             <Calendar className="w-4 h-4 text-emerald-600" />
             Quản Lý Thời Khóa Biểu (TKB Buổi Sáng & Buổi Chiều)
           </h2>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Quản lý ma trận tiết dạy Sáng / Chiều theo từng khoảng tuần áp dụng (Tuần X → Tuần Y)
           </p>
         </div>
@@ -993,7 +1003,7 @@ export function TKBTab() {
               setUploadTab("file");
               setUploadDialogOpen(true);
             }}
-            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs w-full sm:w-auto justify-center"
+            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs w-full sm:w-auto justify-center font-semibold"
           >
             <Upload className="w-3.5 h-3.5 shrink-0" />
             <span>Nạp TKB</span>
@@ -1005,7 +1015,7 @@ export function TKBTab() {
             onClick={() => {
               handleOpenAddSlot();
             }}
-            className="h-8 text-xs gap-1.5 border-[#d0d7de] dark:border-[#30363d] w-full sm:w-auto justify-center"
+            className="h-8 text-xs gap-1.5 border-[#d0d7de] dark:border-[#30363d] w-full sm:w-auto justify-center font-semibold"
           >
             <Plus className="w-3.5 h-3.5 shrink-0" />
             <span>Thêm tiết</span>
@@ -1015,7 +1025,7 @@ export function TKBTab() {
             size="sm"
             variant="outline"
             onClick={handleExportExcel}
-            className="h-8 text-xs gap-1.5 border-[#d0d7de] dark:border-[#30363d] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 w-full sm:w-auto justify-center"
+            className="h-8 text-xs gap-1.5 border-[#d0d7de] dark:border-[#30363d] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 w-full sm:w-auto justify-center font-semibold"
           >
             <Download className="w-3.5 h-3.5 shrink-0" />
             <span>Xuất Excel</span>
@@ -1026,7 +1036,7 @@ export function TKBTab() {
               size="sm"
               variant="ghost"
               onClick={handleClear}
-              className="h-8 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1 w-full sm:w-auto justify-center"
+              className="h-8 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1 w-full sm:w-auto justify-center font-semibold"
             >
               <Trash2 className="w-3.5 h-3.5 shrink-0" />
               <span>Xóa TKB</span>
@@ -1039,7 +1049,7 @@ export function TKBTab() {
       <div className="flex flex-col gap-2.5 bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] p-3 rounded-lg text-xs shadow-2xs">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
           <div className="flex items-center gap-2 w-full">
-            <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Giáo viên:</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 text-xs">Giáo viên:</span>
             <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
               <SelectTrigger className="h-8 w-full text-xs">
                 <SelectValue placeholder="Chọn giáo viên" />
@@ -1056,7 +1066,7 @@ export function TKBTab() {
           </div>
 
           <div className="flex items-center gap-2 w-full">
-            <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Khoảng Tuần:</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 text-xs">Khoảng Tuần:</span>
             <Select
               value={String(selectedWeekFilter)}
               onValueChange={(val) => setSelectedWeekFilter(val === "all" ? "all" : Number(val))}
@@ -1094,16 +1104,16 @@ export function TKBTab() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-1 sm:gap-2 pt-1 border-t border-slate-100 dark:border-slate-850 overflow-x-auto custom-scrollbar-none">
-          {/* Session Filters (Sáng / Chiều / Cả ngày) */}
-          <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-md p-0.5 bg-slate-50 dark:bg-[#0d1117] text-xs shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-850">
+          {/* Row 1 on Mobile: Session Filters (Cả ngày / Sáng / Chiều) */}
+          <div className="flex items-center justify-between sm:justify-start border border-[#d0d7de] dark:border-[#30363d] rounded-lg p-0.5 bg-slate-50 dark:bg-[#0d1117] text-xs w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setSessionFilter("all")}
-              className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-colors text-center whitespace-nowrap ${
                 sessionFilter === "all"
-                  ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-2xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-xs"
+                  : "text-slate-700 dark:text-slate-300 hover:text-slate-900 font-medium"
               }`}
             >
               Cả ngày ({allFilteredTeacherSlots.length})
@@ -1111,10 +1121,10 @@ export function TKBTab() {
             <button
               type="button"
               onClick={() => setSessionFilter("morning")}
-              className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1 whitespace-nowrap ${
                 sessionFilter === "morning"
-                  ? "bg-amber-600 text-white shadow-2xs"
-                  : "text-amber-800 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  ? "bg-amber-600 text-white shadow-xs"
+                  : "text-amber-900 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-medium"
               }`}
             >
               <span>☀️</span>
@@ -1124,10 +1134,10 @@ export function TKBTab() {
             <button
               type="button"
               onClick={() => setSessionFilter("afternoon")}
-              className={`px-1.5 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-semibold transition-colors flex items-center gap-1 whitespace-nowrap ${
+              className={`flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1 whitespace-nowrap ${
                 sessionFilter === "afternoon"
-                  ? "bg-indigo-600 text-white shadow-2xs"
-                  : "text-indigo-800 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-indigo-900 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 font-medium"
               }`}
             >
               <span>🌙</span>
@@ -1136,17 +1146,17 @@ export function TKBTab() {
             </button>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-1">
-            {/* View mode toggle */}
-            <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-md p-0.5 bg-slate-50 dark:bg-[#0d1117] shrink-0">
+          {/* Row 2 on Mobile: View mode toggle (Ma trận / Danh sách) + Refresh button */}
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+            <div className="flex items-center border border-[#d0d7de] dark:border-[#30363d] rounded-lg p-0.5 bg-slate-50 dark:bg-[#0d1117] flex-1 sm:flex-initial">
               <Button
                 variant={viewMode === "grid" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className={`h-7 px-1.5 sm:px-2 text-[11px] sm:text-xs gap-1 whitespace-nowrap ${
+                className={`flex-1 sm:flex-initial h-8 px-3 text-xs gap-1.5 justify-center font-semibold ${
                   viewMode === "grid"
-                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                    : "text-slate-600"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                    : "text-slate-700 dark:text-slate-300 font-medium"
                 }`}
                 title="Xem ma trận tuần"
               >
@@ -1157,10 +1167,10 @@ export function TKBTab() {
                 variant={viewMode === "list" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("list")}
-                className={`h-7 px-1.5 sm:px-2 text-[11px] sm:text-xs gap-1 whitespace-nowrap ${
+                className={`flex-1 sm:flex-initial h-8 px-3 text-xs gap-1.5 justify-center font-semibold ${
                   viewMode === "list"
-                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                    : "text-slate-600"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                    : "text-slate-700 dark:text-slate-300 font-medium"
                 }`}
                 title="Xem danh sách tiết"
               >
@@ -1168,6 +1178,17 @@ export function TKBTab() {
                 <span>Danh sách</span>
               </Button>
             </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={loadTKB}
+              className="h-8 px-2.5 text-xs text-slate-600 dark:text-slate-300 border-[#d0d7de] dark:border-[#30363d] flex items-center justify-center shrink-0 sm:hidden gap-1 font-medium"
+              title="Làm mới"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Tải lại</span>
+            </Button>
 
             <Button
               size="sm"
@@ -1193,10 +1214,10 @@ export function TKBTab() {
               <span className="font-semibold text-emerald-900 dark:text-emerald-200">
                 {copiedSlot.isCut ? "Đang cắt tiết:" : "Đã sao chép tiết:"}
               </span>{" "}
-              <Badge variant="outline" className="bg-white dark:bg-[#161b22] border-emerald-300 text-emerald-800 dark:text-emerald-300 font-bold ml-1">
+              <Badge variant="outline" className="bg-white dark:bg-[#161b22] border-emerald-300 text-emerald-800 dark:text-emerald-300 font-bold ml-1 text-xs">
                 {copiedSlot.slot.class_name} - {copiedSlot.slot.subject}
               </Badge>
-              <span className="text-[11px] text-slate-500 ml-2 hidden sm:inline">
+              <span className="text-xs text-slate-500 ml-2 hidden sm:inline">
                 👉 Bấm vào ô bất kỳ trên bảng để dán (hoặc kéo thả để di chuyển). Nhấn Esc để hủy.
               </span>
             </div>
@@ -1230,13 +1251,13 @@ export function TKBTab() {
                   className="bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-xl overflow-hidden shadow-2xs"
                 >
                   {/* Header for Day */}
-                  <div className="px-3.5 py-2.5 bg-gradient-to-r from-emerald-50 to-slate-50 dark:from-emerald-950/40 dark:to-[#161b22] border-b border-[#d0d7de] dark:border-[#30363d] flex items-center justify-between">
+                  <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-slate-50 dark:from-emerald-950/40 dark:to-[#161b22] border-b border-[#d0d7de] dark:border-[#30363d] flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                      <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                      <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+                      <h3 className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-200">
                         {d.label}
                       </h3>
-                      <span className="text-[11px] text-slate-500 font-medium">
+                      <span className="text-xs text-slate-500 font-semibold">
                         ({daySlots.length} tiết)
                       </span>
                     </div>
@@ -1244,15 +1265,15 @@ export function TKBTab() {
                       size="sm"
                       variant="ghost"
                       onClick={() => handleOpenAddSlot(d.num)}
-                      className="h-6 px-2 text-[11px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1 font-medium"
+                      className="h-7 px-2.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1 font-semibold"
                     >
-                      <Plus className="w-3 h-3" /> Thêm tiết
+                      <Plus className="w-3.5 h-3.5" /> Thêm tiết
                     </Button>
                   </div>
 
                   {/* Sáng: Tiết 1..5 */}
                   {sessionFilter !== "afternoon" && (
-                    <div className="p-3 border-b border-slate-100 dark:border-slate-800 space-y-2">
+                    <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 space-y-2.5">
                       <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-300">
                         <span className="flex items-center gap-1.5">
                           <span>☀️</span>
@@ -1260,37 +1281,37 @@ export function TKBTab() {
                         </span>
                       </div>
 
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {morningPeriods.map((p) => {
                           const slot = getSlot(d.num, p);
                           if (!slot) {
                             return (
                               <div
                                 key={`m-morning-${d.num}-${p}`}
-                                className="p-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400 bg-slate-50/40 dark:bg-[#161b22]/30"
+                                className="p-2.5 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400 bg-slate-50/40 dark:bg-[#161b22]/30"
                               >
-                                <span className="font-mono font-medium text-[11px] text-slate-500">
+                                <span className="font-mono font-bold text-xs text-slate-600 dark:text-slate-400">
                                   Tiết {p}
                                 </span>
-                                <span className="italic text-[11px] text-slate-400/80">(Trống)</span>
-                                <div className="flex items-center gap-1">
+                                <span className="italic text-xs text-slate-400/80">(Trống)</span>
+                                <div className="flex items-center gap-1.5">
                                   {copiedSlot && (
                                     <Button
                                       variant="default"
                                       size="sm"
                                       onClick={() => handlePasteSlot(d.num, p)}
-                                      className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white gap-0.5 shadow-2xs"
+                                      className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shadow-2xs font-semibold"
                                     >
-                                      <ClipboardPaste className="w-3 h-3" /> Dán
+                                      <ClipboardPaste className="w-3.5 h-3.5" /> Dán
                                     </Button>
                                   )}
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleOpenAddSlot(d.num, p)}
-                                    className="h-6 px-2 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-0.5"
+                                    className="h-7 px-2.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1 font-semibold"
                                   >
-                                    <Plus className="w-3 h-3" /> Thêm
+                                    <Plus className="w-3.5 h-3.5" /> Thêm
                                   </Button>
                                 </div>
                               </div>
@@ -1300,17 +1321,17 @@ export function TKBTab() {
                           return (
                             <div
                               key={`m-slot-${slot.id}`}
-                              className="p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 space-y-1.5"
+                              className="p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 space-y-2"
                             >
                               <div className="flex items-center justify-between gap-1.5">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded bg-white dark:bg-[#21262d] font-bold text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-mono text-[11px]">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2.5 py-1 rounded bg-white dark:bg-[#21262d] font-bold text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-mono text-xs">
                                     Tiết {slot.period}
                                   </span>
-                                  <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-600 text-white text-[11px]">
+                                  <span className="px-2.5 py-1 rounded-full font-bold bg-emerald-600 text-white text-xs">
                                     {slot.class_name}
                                   </span>
-                                  <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-medium text-[11px]">
+                                  <span className="px-2.5 py-1 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-semibold text-xs">
                                     {slot.subject}
                                   </span>
                                 </div>
@@ -1319,34 +1340,34 @@ export function TKBTab() {
                                     variant="ghost"
                                     size="icon"
                                     onClick={(e) => handleCopySlot(slot, e)}
-                                    className="h-6 w-6 text-slate-400 hover:text-emerald-600"
+                                    className="h-7 w-7 text-slate-500 hover:text-emerald-600"
                                     title="Sao chép tiết"
                                   >
-                                    <Copy className="w-3.5 h-3.5" />
+                                    <Copy className="w-4 h-4" />
                                   </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => handleOpenEditSlot(slot)}
-                                    className="h-6 w-6 text-slate-400 hover:text-emerald-600"
+                                    className="h-7 w-7 text-slate-500 hover:text-emerald-600"
                                     title="Sửa"
                                   >
-                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <Edit2 className="w-4 h-4" />
                                   </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => handleDeleteSlot(slot.id)}
-                                    className="h-6 w-6 text-slate-400 hover:text-red-600"
+                                    className="h-7 w-7 text-slate-500 hover:text-red-600"
                                     title="Xóa"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 className="w-4 h-4" />
                                   </Button>
                                 </div>
                               </div>
-                              <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between">
-                                <span>Áp dụng: Tuần {slot.from_week || 1} → {slot.to_week || 35}</span>
-                                <span>{slot.teacher_name}</span>
+                              <div className="text-xs text-slate-600 dark:text-slate-400 font-mono flex items-center justify-between">
+                                <span>Áp dụng: {formatWeekRange(slot.from_week, slot.to_week)}</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">{slot.teacher_name}</span>
                               </div>
                             </div>
                           );
@@ -1357,7 +1378,7 @@ export function TKBTab() {
 
                   {/* Chiều: Tiết 6..10 */}
                   {sessionFilter !== "morning" && (
-                    <div className="p-3 space-y-2">
+                    <div className="p-3.5 space-y-2.5">
                       <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-300">
                         <span className="flex items-center gap-1.5">
                           <span>🌙</span>
@@ -1365,7 +1386,7 @@ export function TKBTab() {
                         </span>
                       </div>
 
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {afternoonPeriods.map((p) => {
                           const slot = getSlot(d.num, p);
                           const chieuNum = p - 5;
@@ -1373,30 +1394,30 @@ export function TKBTab() {
                             return (
                               <div
                                 key={`m-afternoon-${d.num}-${p}`}
-                                className="p-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400 bg-slate-50/40 dark:bg-[#161b22]/30"
+                                className="p-2.5 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400 bg-slate-50/40 dark:bg-[#161b22]/30"
                               >
-                                <span className="font-mono font-medium text-[11px] text-slate-500">
+                                <span className="font-mono font-bold text-xs text-slate-600 dark:text-slate-400">
                                   Tiết {p} (T{chieuNum} Chiều)
                                 </span>
-                                <span className="italic text-[11px] text-slate-400/80">(Trống)</span>
-                                <div className="flex items-center gap-1">
+                                <span className="italic text-xs text-slate-400/80">(Trống)</span>
+                                <div className="flex items-center gap-1.5">
                                   {copiedSlot && (
                                     <Button
                                       variant="default"
                                       size="sm"
                                       onClick={() => handlePasteSlot(d.num, p)}
-                                      className="h-6 px-2 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white gap-0.5 shadow-2xs"
+                                      className="h-7 px-2.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1 shadow-2xs font-semibold"
                                     >
-                                      <ClipboardPaste className="w-3 h-3" /> Dán
+                                      <ClipboardPaste className="w-3.5 h-3.5" /> Dán
                                     </Button>
                                   )}
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleOpenAddSlot(d.num, p)}
-                                    className="h-6 px-2 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 gap-0.5"
+                                    className="h-7 px-2.5 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 gap-1 font-semibold"
                                   >
-                                    <Plus className="w-3 h-3" /> Thêm
+                                    <Plus className="w-3.5 h-3.5" /> Thêm
                                   </Button>
                                 </div>
                               </div>
@@ -1406,17 +1427,17 @@ export function TKBTab() {
                           return (
                             <div
                               key={`m-slot-${slot.id}`}
-                              className="p-2.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 space-y-1.5"
+                              className="p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 space-y-2"
                             >
                               <div className="flex items-center justify-between gap-1.5">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded bg-white dark:bg-[#21262d] font-bold text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 font-mono text-[11px]">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2.5 py-1 rounded bg-white dark:bg-[#21262d] font-bold text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 font-mono text-xs">
                                     Tiết {slot.period} (T{chieuNum} Chiều)
                                   </span>
-                                  <span className="px-2 py-0.5 rounded-full font-bold bg-indigo-600 text-white text-[11px]">
+                                  <span className="px-2.5 py-1 rounded-full font-bold bg-indigo-600 text-white text-xs">
                                     {slot.class_name}
                                   </span>
-                                  <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-medium text-[11px]">
+                                  <span className="px-2.5 py-1 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-semibold text-xs">
                                     {slot.subject}
                                   </span>
                                 </div>
@@ -1425,34 +1446,34 @@ export function TKBTab() {
                                     variant="ghost"
                                     size="icon"
                                     onClick={(e) => handleCopySlot(slot, e)}
-                                    className="h-6 w-6 text-slate-400 hover:text-indigo-600"
+                                    className="h-7 w-7 text-slate-500 hover:text-indigo-600"
                                     title="Sao chép tiết"
                                   >
-                                    <Copy className="w-3.5 h-3.5" />
+                                    <Copy className="w-4 h-4" />
                                   </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => handleOpenEditSlot(slot)}
-                                    className="h-6 w-6 text-slate-400 hover:text-indigo-600"
+                                    className="h-7 w-7 text-slate-500 hover:text-indigo-600"
                                     title="Sửa"
                                   >
-                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <Edit2 className="w-4 h-4" />
                                   </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => handleDeleteSlot(slot.id)}
-                                    className="h-6 w-6 text-slate-400 hover:text-red-600"
+                                    className="h-7 w-7 text-slate-500 hover:text-red-600"
                                     title="Xóa"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 className="w-4 h-4" />
                                   </Button>
                                 </div>
                               </div>
-                              <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between">
-                                <span>Áp dụng: Tuần {slot.from_week || 1} → {slot.to_week || 35}</span>
-                                <span>{slot.teacher_name}</span>
+                              <div className="text-xs text-slate-600 dark:text-slate-400 font-mono flex items-center justify-between">
+                                <span>Áp dụng: {formatWeekRange(slot.from_week, slot.to_week)}</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">{slot.teacher_name}</span>
                               </div>
                             </div>
                           );
@@ -1469,7 +1490,7 @@ export function TKBTab() {
           <div className="hidden md:block bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg overflow-hidden shadow-2xs">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full min-w-[650px] text-center text-xs border-collapse">
-                <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-[11px]">
+                <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-xs">
                   <tr>
                     <th className="px-3 py-3 w-24 border-r border-white/20">Tiết / Buổi</th>
                     {DAYS.map((d) => (
@@ -1493,7 +1514,7 @@ export function TKBTab() {
                               <span className="text-amber-500 text-sm">☀️</span>
                               <span>BUỔI SÁNG (Tiết 1 → 5)</span>
                             </span>
-                            <span className="text-[11px] font-normal text-amber-800/80 dark:text-amber-300/80 lowercase">
+                            <span className="text-xs font-normal text-amber-800/80 dark:text-amber-300/80 lowercase">
                               {morningSlotsCount} tiết đã xếp
                             </span>
                           </div>
@@ -1503,7 +1524,7 @@ export function TKBTab() {
                         <tr key={period} className="hover:bg-slate-50/60 dark:hover:bg-[#21262d]/40">
                           <td className="px-2.5 py-2.5 font-bold text-slate-700 dark:text-slate-200 border-r border-[#d0d7de] dark:border-[#30363d] bg-amber-50/20 dark:bg-amber-950/10">
                             <div>Tiết {period}</div>
-                            <div className="text-[9px] text-amber-600 dark:text-amber-400 font-normal">Sáng</div>
+                            <div className="text-xs text-amber-700 dark:text-amber-400 font-semibold">Sáng</div>
                           </td>
                           {DAYS.map((d) => {
                             const slot = getSlot(d.num, period);
@@ -1597,20 +1618,20 @@ export function TKBTab() {
                                       </div>
                                       {(slot.from_week !== 1 || slot.to_week !== 35) && (
                                         <span
-                                          className="text-[9px] px-1 py-0.2 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-semibold"
-                                          title={`Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}
+                                          className="text-xs px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-semibold font-mono"
+                                          title={slot.from_week === slot.to_week ? `Áp dụng Tuần ${slot.from_week}` : `Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}
                                         >
-                                          T{slot.from_week}-{slot.to_week}
+                                          {slot.from_week === slot.to_week ? `T${slot.from_week}` : `T${slot.from_week}-${slot.to_week}`}
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate text-left pl-3.5">
+                                    <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium truncate text-left pl-3.5">
                                       {slot.subject}
                                     </p>
 
                                     {/* Drag Over Existing Slot Indicator (Swap) */}
                                     {isOver && !isCurrentDragged && (
-                                      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-amber-600/90 text-white text-[11px] font-bold rounded shadow-lg backdrop-blur-[1px] animate-in fade-in zoom-in-95 duration-100">
+                                      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-amber-600/90 text-white text-xs font-bold rounded shadow-lg backdrop-blur-[1px] animate-in fade-in zoom-in-95 duration-100">
                                         <ArrowLeftRight className="w-4 h-4 mb-0.5 animate-bounce" />
                                         <span>{isDragCopy ? "Ghi đè" : "Hoán đổi"}</span>
                                       </div>
@@ -1619,14 +1640,14 @@ export function TKBTab() {
                                 ) : (
                                   <div className="flex items-center justify-center h-full min-h-[44px]">
                                     {isOver ? (
-                                      <div className="flex flex-col items-center justify-center py-1 px-2 rounded border-2 border-dashed border-emerald-500 bg-emerald-100/70 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 text-[10px] font-bold animate-pulse w-full">
+                                      <div className="flex flex-col items-center justify-center py-1 px-2 rounded border-2 border-dashed border-emerald-500 bg-emerald-100/70 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 text-xs font-bold animate-pulse w-full">
                                         <span>{isDragCopy ? "📋 Thả để chép" : "⬇️ Thả vào đây"}</span>
                                       </div>
                                     ) : copiedSlot ? (
                                       <button
                                         type="button"
                                         onClick={(e) => handlePasteSlot(d.num, period, e)}
-                                        className="w-full h-full min-h-[44px] flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100/70 dark:bg-emerald-950/60 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 rounded-lg border-2 border-dashed border-emerald-500 shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
+                                        className="w-full h-full min-h-[44px] flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100/70 dark:bg-emerald-950/60 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 rounded-lg border-2 border-dashed border-emerald-500 shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
                                         title={`Bấm để ${copiedSlot.isCut ? "chuyển" : "dán"} ${copiedSlot.slot.class_name} vào đây`}
                                       >
                                         {copiedSlot.isCut ? (
@@ -1666,7 +1687,7 @@ export function TKBTab() {
                               <span className="text-indigo-500 text-sm">🌙</span>
                               <span>BUỔI CHIỀU (Tiết 1 → 5 Chiều / Tiết 6 → 10)</span>
                             </span>
-                            <span className="text-[11px] font-normal text-indigo-800/80 dark:text-indigo-300/80 lowercase">
+                            <span className="text-xs font-normal text-indigo-800/80 dark:text-indigo-300/80 lowercase">
                               {afternoonSlotsCount} tiết đã xếp
                             </span>
                           </div>
@@ -1678,7 +1699,7 @@ export function TKBTab() {
                           <tr key={period} className="hover:bg-slate-50/60 dark:hover:bg-[#21262d]/40">
                             <td className="px-2.5 py-2.5 font-bold text-slate-700 dark:text-slate-200 border-r border-[#d0d7de] dark:border-[#30363d] bg-indigo-50/20 dark:bg-indigo-950/10">
                               <div>Tiết {period}</div>
-                              <div className="text-[9px] text-indigo-600 dark:text-indigo-400 font-normal">Tiết {chieuNum} Chiều</div>
+                              <div className="text-xs text-indigo-700 dark:text-indigo-400 font-semibold">Tiết {chieuNum} Chiều</div>
                             </td>
                             {DAYS.map((d) => {
                               const slot = getSlot(d.num, period);
@@ -1766,20 +1787,20 @@ export function TKBTab() {
                                         </div>
                                         {(slot.from_week !== 1 || slot.to_week !== 35) && (
                                           <span
-                                            className="text-[9px] px-1 py-0.2 rounded bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 font-semibold"
-                                            title={`Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}
+                                            className="text-xs px-1.5 py-0.5 rounded bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 font-semibold font-mono"
+                                            title={slot.from_week === slot.to_week ? `Áp dụng Tuần ${slot.from_week}` : `Áp dụng từ Tuần ${slot.from_week} đến Tuần ${slot.to_week}`}
                                           >
-                                            T{slot.from_week}-{slot.to_week}
+                                            {slot.from_week === slot.to_week ? `T${slot.from_week}` : `T${slot.from_week}-${slot.to_week}`}
                                           </span>
                                         )}
                                       </div>
-                                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium truncate text-left pl-3.5">
+                                      <p className="text-xs text-indigo-700 dark:text-indigo-400 font-medium truncate text-left pl-3.5">
                                         {slot.subject}
                                       </p>
 
                                       {/* Drag Over Existing Slot Indicator (Swap) */}
                                       {isOver && !isCurrentDragged && (
-                                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-amber-600/90 text-white text-[11px] font-bold rounded shadow-lg backdrop-blur-[1px] animate-in fade-in zoom-in-95 duration-100">
+                                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-amber-600/90 text-white text-xs font-bold rounded shadow-lg backdrop-blur-[1px] animate-in fade-in zoom-in-95 duration-100">
                                           <ArrowLeftRight className="w-4 h-4 mb-0.5 animate-bounce" />
                                           <span>{isDragCopy ? "Ghi đè" : "Hoán đổi"}</span>
                                         </div>
@@ -1788,14 +1809,14 @@ export function TKBTab() {
                                   ) : (
                                     <div className="flex items-center justify-center h-full min-h-[44px]">
                                       {isOver ? (
-                                        <div className="flex flex-col items-center justify-center py-1 px-2 rounded border-2 border-dashed border-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-200 text-[10px] font-bold animate-pulse w-full">
+                                        <div className="flex flex-col items-center justify-center py-1 px-2 rounded border-2 border-dashed border-indigo-500 bg-indigo-100/70 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-200 text-xs font-bold animate-pulse w-full">
                                           <span>{isDragCopy ? "📋 Thả để chép" : "⬇️ Thả vào đây"}</span>
                                         </div>
                                       ) : copiedSlot ? (
                                         <button
                                           type="button"
                                           onClick={(e) => handlePasteSlot(d.num, period, e)}
-                                          className="w-full h-full min-h-[44px] flex items-center justify-center gap-1.5 text-[11px] font-bold text-indigo-800 dark:text-indigo-200 bg-indigo-100/70 dark:bg-indigo-950/60 hover:bg-indigo-200 dark:hover:bg-indigo-900/80 rounded-lg border-2 border-dashed border-indigo-500 shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
+                                          className="w-full h-full min-h-[44px] flex items-center justify-center gap-1.5 text-xs font-bold text-indigo-800 dark:text-indigo-200 bg-indigo-100/70 dark:bg-indigo-950/60 hover:bg-indigo-200 dark:hover:bg-indigo-900/80 rounded-lg border-2 border-dashed border-indigo-500 shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
                                           title={`Bấm để ${copiedSlot.isCut ? "chuyển" : "dán"} ${copiedSlot.slot.class_name} vào đây`}
                                         >
                                           {copiedSlot.isCut ? (
@@ -1828,7 +1849,7 @@ export function TKBTab() {
                 </tbody>
               </table>
             </div>
-            <div className="p-2.5 bg-slate-50 dark:bg-[#0d1117] border-t border-[#d0d7de] dark:border-[#30363d] text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between flex-wrap gap-2">
+            <div className="p-2.5 bg-slate-50 dark:bg-[#0d1117] border-t border-[#d0d7de] dark:border-[#30363d] text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between flex-wrap gap-2">
               <span className="flex items-center gap-1.5 flex-wrap">
                 <span>💡 <strong>Mẹo:</strong></span>
                 <span>• Kéo thả vào ô trống để chuyển tiết</span>
@@ -1870,10 +1891,10 @@ export function TKBTab() {
                         <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
                           {dayLabel}
                         </span>
-                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#21262d] text-emerald-700 dark:text-emerald-400 font-bold text-[11px] font-mono border border-slate-200 dark:border-slate-700">
+                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#21262d] text-emerald-700 dark:text-emerald-400 font-bold text-xs font-mono border border-slate-200 dark:border-slate-700">
                           Tiết {slot.period} {slot.period > 5 && `(T${slot.period - 5} Chiều)`}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[11px]">
+                        <span className="px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs">
                           {slot.class_name}
                         </span>
                       </div>
@@ -1903,17 +1924,17 @@ export function TKBTab() {
                           Môn: <strong>{slot.subject}</strong>
                         </span>
                         {isMorning ? (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300">
+                          <span className="text-xs px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 font-medium">
                             ☀️ Sáng
                           </span>
                         ) : (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-300">
+                          <span className="text-xs px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-300 font-medium">
                             🌙 Chiều
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] font-mono text-slate-500">
-                        Tuần {fw} → {tw}
+                      <span className="text-xs font-mono text-slate-500">
+                        {formatWeekRange(fw, tw)}
                       </span>
                     </div>
                   </div>
@@ -1926,7 +1947,7 @@ export function TKBTab() {
           <div className="hidden md:block bg-white dark:bg-[#161b22] border border-[#d0d7de] dark:border-[#30363d] rounded-lg overflow-hidden shadow-2xs">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full min-w-[700px] text-left text-xs">
-                <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-[11px]">
+                <thead className="bg-[#1F4E78] text-white border-b border-[#d0d7de] dark:border-[#30363d] font-semibold text-xs">
                   <tr>
                     <th className="px-4 py-3 border-r border-white/20">Thứ</th>
                     <th className="px-4 py-3 text-center border-r border-white/20">Tiết TKB</th>
@@ -1961,11 +1982,11 @@ export function TKBTab() {
                           </td>
                           <td className="px-4 py-2.5 text-center">
                             {isMorning ? (
-                              <Badge variant="outline" className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 text-[10px]">
+                              <Badge variant="outline" className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 text-xs">
                                 ☀️ Sáng
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-300 text-[10px]">
+                              <Badge variant="outline" className="bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-300 text-xs">
                                 🌙 Chiều
                               </Badge>
                             )}
@@ -1975,8 +1996,8 @@ export function TKBTab() {
                           </td>
                           <td className="px-4 py-2.5 font-medium">{slot.subject}</td>
                           <td className="px-4 py-2.5 text-center">
-                            <Badge variant="secondary" className="text-[10px] font-mono">
-                              Tuần {fw} → {tw}
+                            <Badge variant="secondary" className="text-xs font-mono">
+                              {formatWeekRange(fw, tw)}
                             </Badge>
                           </td>
                           <td className="px-4 py-2.5 text-slate-500">{slot.teacher_name}</td>
@@ -2040,7 +2061,7 @@ export function TKBTab() {
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <span className="text-[11px] text-slate-500 block mb-0.5">Từ Tuần:</span>
+                  <span className="text-xs text-slate-500 block mb-0.5 font-medium">Từ Tuần:</span>
                   <Input
                     type="number"
                     min={1}
@@ -2051,7 +2072,7 @@ export function TKBTab() {
                   />
                 </div>
                 <div>
-                  <span className="text-[11px] text-slate-500 block mb-0.5">Đến Tuần:</span>
+                  <span className="text-xs text-slate-500 block mb-0.5 font-medium">Đến Tuần:</span>
                   <Input
                     type="number"
                     min={1}
@@ -2305,11 +2326,11 @@ export function TKBTab() {
 
             {/* Quick Presets for Week Ranges */}
             <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-50 dark:bg-[#0d1117] rounded-lg border border-[#d0d7de] dark:border-[#30363d]">
-              <span className="text-[11px] font-semibold text-slate-500 mr-1">Mẫu nhanh:</span>
+              <span className="text-xs font-semibold text-slate-500 mr-1">Mẫu nhanh:</span>
               <button
                 type="button"
                 onClick={() => { setUploadFromWeek(1); setUploadToWeek(35); }}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                   uploadFromWeek === 1 && uploadToWeek === 35
                     ? "bg-emerald-600 text-white border-emerald-600"
                     : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
@@ -2320,7 +2341,7 @@ export function TKBTab() {
               <button
                 type="button"
                 onClick={() => { setUploadFromWeek(1); setUploadToWeek(18); }}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                   uploadFromWeek === 1 && uploadToWeek === 18
                     ? "bg-emerald-600 text-white border-emerald-600"
                     : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
@@ -2331,7 +2352,7 @@ export function TKBTab() {
               <button
                 type="button"
                 onClick={() => { setUploadFromWeek(19); setUploadToWeek(35); }}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                   uploadFromWeek === 19 && uploadToWeek === 35
                     ? "bg-emerald-600 text-white border-emerald-600"
                     : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
@@ -2342,7 +2363,7 @@ export function TKBTab() {
               <button
                 type="button"
                 onClick={() => { setUploadFromWeek(1); setUploadToWeek(9); }}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                   uploadFromWeek === 1 && uploadToWeek === 9
                     ? "bg-emerald-600 text-white border-emerald-600"
                     : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
@@ -2353,7 +2374,7 @@ export function TKBTab() {
               <button
                 type="button"
                 onClick={() => { setUploadFromWeek(10); setUploadToWeek(18); }}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                   uploadFromWeek === 10 && uploadToWeek === 18
                     ? "bg-emerald-600 text-white border-emerald-600"
                     : "bg-white dark:bg-[#161b22] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100"
@@ -2410,10 +2431,10 @@ export function TKBTab() {
               <div className="border-2 border-dashed border-[#d0d7de] dark:border-[#30363d] rounded-lg p-4 sm:p-6 text-center space-y-2 hover:bg-slate-50 dark:hover:bg-[#21262d]/50 transition-colors">
                 <FileSpreadsheet className="w-10 h-10 mx-auto text-emerald-600" />
                 <div>
-                  <p className="font-semibold text-slate-700 dark:text-slate-300">
+                  <p className="font-semibold text-slate-700 dark:text-slate-300 text-xs sm:text-sm">
                     Chọn file Excel (.xlsx) hoặc PDF (.pdf) Thời Khóa Biểu
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5">
                     File ma trận tuần hoặc bảng danh sách tiết dạy (Hệ thống hỗ trợ AI trích xuất PDF)
                   </p>
                 </div>
@@ -2435,7 +2456,7 @@ export function TKBTab() {
             ) : uploadTab === "paste" ? (
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
                     Dán ma trận hoặc danh sách TKB (từ Excel/Website/Word):
                   </label>
                   <Button
@@ -2443,9 +2464,9 @@ export function TKBTab() {
                     variant="outline"
                     size="sm"
                     onClick={handlePasteFromClipboard}
-                    className="h-7 text-[11px] gap-1 px-2.5 border-[#d0d7de] self-start sm:self-auto shrink-0 whitespace-nowrap"
+                    className="h-8 text-xs gap-1 px-2.5 border-[#d0d7de] self-start sm:self-auto shrink-0 whitespace-nowrap"
                   >
-                    <ClipboardPaste className="w-3 h-3" />
+                    <ClipboardPaste className="w-3.5 h-3.5" />
                     Dán nhanh Clipboard
                   </Button>
                 </div>
@@ -2466,7 +2487,7 @@ export function TKBTab() {
             ) : (
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 text-xs">
                     <Camera className="w-3.5 h-3.5 text-emerald-600" />
                     Ảnh chụp ma trận Thời Khóa Biểu:
                   </label>
@@ -2475,7 +2496,7 @@ export function TKBTab() {
                     variant="outline"
                     size="sm"
                     onClick={handlePasteImageFromClipboard}
-                    className="h-7 text-[11px] gap-1.5 px-2.5 border-[#d0d7de] self-start sm:self-auto shrink-0 whitespace-nowrap"
+                    className="h-8 text-xs gap-1.5 px-2.5 border-[#d0d7de] self-start sm:self-auto shrink-0 whitespace-nowrap"
                   >
                     <ClipboardPaste className="w-3.5 h-3.5" />
                     Dán ảnh từ Clipboard
@@ -2502,7 +2523,7 @@ export function TKBTab() {
                         <X className="w-4 h-4" />
                       </button>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 px-1 gap-2">
+                    <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 px-1 gap-2">
                       <span className="truncate max-w-[320px] font-medium text-left">
                         {pastedImage?.name || "Ảnh từ Clipboard"} (
                         {pastedImage ? `${(pastedImage.size / 1024).toFixed(0)} KB` : ""})
@@ -2525,14 +2546,14 @@ export function TKBTab() {
                       <ImageIcon className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="font-bold text-slate-700 dark:text-slate-200">
+                      <p className="font-bold text-slate-700 dark:text-slate-200 text-xs sm:text-sm">
                         Nhấn Ctrl+V để dán ảnh chụp TKB từ Clipboard
                       </p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         Hoặc bấm vào đây để chọn file ảnh (.png, .jpg, .jpeg, .webp)
                       </p>
                     </div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-[10px] font-medium">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
                       <Sparkles className="w-3 h-3 text-emerald-600" />
                       Gemini Vision AI tự động đọc bảng ma trận Thứ/Tiết/Lớp học
                     </div>
@@ -2611,7 +2632,7 @@ export function TKBTab() {
             <>
               <div className="px-3 py-1.5 font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between">
                 <span>{contextMenu.slot.class_name} - {contextMenu.slot.subject}</span>
-                <span className="text-[10px] text-slate-400 font-normal font-mono">Tiết {contextMenu.slot.period}</span>
+                <span className="text-xs text-slate-400 font-normal font-mono">Tiết {contextMenu.slot.period}</span>
               </div>
               <button
                 type="button"
@@ -2705,11 +2726,11 @@ export function TKBTab() {
             <div>
               <div className="text-xs font-bold flex items-center gap-1.5 flex-wrap">
                 <span>{copiedSlot.isCut ? "Đang di chuyển:" : "Đang sao chép:"}</span>
-                <span className="text-emerald-700 dark:text-emerald-300 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 font-mono text-[11px]">
+                <span className="text-emerald-700 dark:text-emerald-300 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 font-mono text-xs">
                   {copiedSlot.slot.class_name} - {copiedSlot.slot.subject}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 👉 Nhấp ô trống trên bảng để {copiedSlot.isCut ? "chuyển đến" : "dán (có thể dán nhiều ô)"}
               </div>
             </div>
